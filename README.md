@@ -24,25 +24,28 @@ Installing Node.js also installs npm automatically.
 Follow these steps to run the application locally.
 
 1. Clone the repository
-bash
-Copy code
+
 git clone https://github.com/athaarnaqvi/Email-Flow-Analyzer.git
+
 cd Email-Flow-Analyzer
+
 2. Install dependencies
+
 Install all required packages using npm:
+   ```bash
+  npm install
 
-bash
-Copy code
-npm install
 3. Run the development server
-Start the application in development mode:
 
-bash
-Copy code
-npm run dev
+Start the application in development mode:
+  ```bash
+  npm run dev
+
 4. Open in browser
+
 Once the server starts, open your browser and navigate to:
 http://localhost:3000
+
 Notes
 Do not commit node_modules or .next directories.
 
