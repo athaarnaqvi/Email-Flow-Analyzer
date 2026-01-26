@@ -14,54 +14,52 @@ Before running this project, make sure you have the following installed on your 
 - Verify installation:
   ```bash
   node -v
-Download Node.js from the official website:
-https://nodejs.org/
+  ```
+- Download Node.js from the official website: [https://nodejs.org/](https://nodejs.org/)
 
 Installing Node.js also installs npm automatically.
 
 
 ## Getting Started
+
 Follow these steps to run the application locally.
 
-1. Clone the repository
-
-git clone https://github.com/athaarnaqvi/Email-Flow-Analyzer.git
-
-cd Email-Flow-Analyzer
-
-2. Install dependencies
-
-Install all required packages using npm:
+1. **Clone the repository**
    ```bash
-  npm install
+   git clone https://github.com/athaarnaqvi/Email-Flow-Analyzer.git
+   cd email-flow-analyzer-ui
+   ```
 
-3. Run the development server
+2. **Install dependencies**
+   ```bash
+   pnpm install
+   ```
 
-Start the application in development mode:
-  ```bash
-  npm run dev
+3. **Run the development server**
+   ```bash
+   pnpm run dev
+   ```
 
-4. Open in browser
+4. **Open in browser**
+   Once the server starts, open your browser and navigate to:  
+   [http://localhost:3000](http://localhost:3000)
 
-Once the server starts, open your browser and navigate to:
-http://localhost:3000
+### Notes
+- Do not commit `node_modules` or `.next` directories.
+- Configuration files such as `package.json`, `pnpm-lock.yaml`, and `tsconfig.json` are version-controlled.
+- This project uses Next.js default development settings.
 
-Notes
-Do not commit node_modules or .next directories.
-
-Configuration files such as package.json, package-lock.json, and tsconfig.json are version-controlled.
-
-This project uses Next.js default development settings.
+---
 
 ## Scripts
 
-Common npm scripts used in this project:
+Common pnpm scripts used in this project:
 
-npm run dev – Start development server
+- `pnpm run dev` – Start development server
+- `pnpm run build` – Build for production
+- `pnpm run start` – Start production server
 
-npm run build – Build for production
-
-npm run start – Start production server
+---
 
 ## License
 
