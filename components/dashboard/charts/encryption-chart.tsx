@@ -10,7 +10,11 @@ const data = [
 
 const COLORS = ["#6366f1", "#94a3b8"];
 
-export function EncryptionChart() {
+interface EncryptionChartProps {
+  data?: { name: string; value: number }[];
+}
+
+export function EncryptionChart({ data = [] }: EncryptionChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">

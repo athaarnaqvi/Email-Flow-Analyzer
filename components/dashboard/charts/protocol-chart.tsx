@@ -11,7 +11,11 @@ const data = [
 
 const COLORS = ["#8b5cf6", "#06b6d4", "#f97316"];
 
-export function ProtocolChart() {
+interface ProtocolChartProps {
+  data?: { name: string; value: number }[];
+}
+
+export function ProtocolChart({ data = [] }: ProtocolChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">

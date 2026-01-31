@@ -31,13 +31,12 @@ const generateTrafficData = (type: "radius" | "data") => {
 interface TrafficChartProps {
   title: string;
   description: string;
-  dataKey: "radius" | "data";
+  data: { time: string; value: number }[];
   unit: string;
+  color?: string;
 }
 
-export function TrafficChart({ title, description, dataKey, unit }: TrafficChartProps) {
-  const data = generateTrafficData(dataKey);
-  const color = dataKey === "radius" ? "#6366f1" : "#22c55e";
+export function TrafficChart({ title, description, data = [], unit, color = "#6366f1" }: TrafficChartProps) {
 
   return (
     <Card>
@@ -50,7 +49,7 @@ export function TrafficChart({ title, description, dataKey, unit }: TrafficChart
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
               <defs>
-                <linearGradient id={`gradient-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="gradient-traffic" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={color} stopOpacity={0.3} />
                   <stop offset="95%" stopColor={color} stopOpacity={0} />
                 </linearGradient>
@@ -83,7 +82,7 @@ export function TrafficChart({ title, description, dataKey, unit }: TrafficChart
                 dataKey="value"
                 stroke={color}
                 strokeWidth={2}
-                fill={`url(#gradient-${dataKey})`}
+                fill="url(#gradient-traffic)"
               />
             </AreaChart>
           </ResponsiveContainer>
