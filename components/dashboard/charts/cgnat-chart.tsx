@@ -10,7 +10,11 @@ const data = [
 
 const COLORS = ["#22c55e", "#ef4444"];
 
-export function CgnatChart() {
+interface CgnatChartProps {
+  data?: { name: string; value: number }[];
+}
+
+export function CgnatChart({ data = [] }: CgnatChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">

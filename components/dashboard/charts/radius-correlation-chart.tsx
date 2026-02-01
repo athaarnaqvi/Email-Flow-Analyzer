@@ -10,7 +10,11 @@ const data = [
 
 const COLORS = ["#3b82f6", "#f59e0b"];
 
-export function RadiusCorrelationChart() {
+interface RadiusCorrelationChartProps {
+  data?: { name: string; value: number }[];
+}
+
+export function RadiusCorrelationChart({ data = [] }: RadiusCorrelationChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EncryptionChart } from "@/components/dashboard/charts/encryption-chart";
 import { CgnatChart } from "@/components/dashboard/charts/cgnat-chart";
@@ -17,6 +18,23 @@ const servers = [
 ];
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/dashboard/stats")
+      .then((res) => res.json())
+      .then((data) => setStats(data))
+      .catch((err) => console.error(err));
+  }, []);
+
+  const protocolData = stats?.protocols?.map((b: any) => ({ name: b.key, value: b.doc_count })) || [];
+  const cgnatData = stats?.cgnat?.map((b: any) => ({ name: b.key_as_string === "true" ? "Matched" : "Unmatched", value: b.doc_count })) || [];
+  const radiusData = stats?.radius?.map((b: any) => ({ name: b.key_as_string === "true" ? "Session Found" : "No Session", value: b.doc_count })) || [];
+  const trafficData = stats?.traffic?.map((b: any) => ({
+    time: new Date(b.key).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    value: b.doc_count
+  })) || [];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -28,25 +46,27 @@ export default function DashboardPage() {
 
       {/* Pie Charts Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <EncryptionChart />
-        <CgnatChart />
-        <RadiusCorrelationChart />
-        <ProtocolChart />
+        <EncryptionChart data={protocolData} />
+        <CgnatChart data={cgnatData} />
+        <RadiusCorrelationChart data={radiusData} />
+        <ProtocolChart data={protocolData} />
       </div>
 
       {/* Line Charts Row */}
       <div className="grid gap-4 md:grid-cols-2">
         <TrafficChart
-          title="RADIUS RX Traffic"
-          description="Last 24 hours (Gbps)"
-          dataKey="radius"
-          unit="Gbps"
+          title="Total Traffic"
+          description="Emails processed in last 5 years"
+          data={trafficData}
+          unit="Emails"
+          color="#6366f1"
         />
         <TrafficChart
           title="Data RX Traffic"
-          description="Last 24 hours (Mbps)"
-          dataKey="data"
+          description="Last 5 years (Mbps)"
+          data={trafficData}
           unit="Mbps"
+          color="#22c55e"
         />
       </div>
 
