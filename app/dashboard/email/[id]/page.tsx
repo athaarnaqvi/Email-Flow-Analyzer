@@ -27,57 +27,40 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Mock email data
-const mockEmail = {
-  id: "1",
-  from: "john.doe@example.com",
-  to: ["jane.smith@company.org", "bob.wilson@company.org"],
-  cc: ["team@company.org"],
-  bcc: [],
-  subject: "Q4 Financial Report - Final Review",
-  body: `
-    <div style="font-family: Arial, sans-serif;">
-      <p>Dear Team,</p>
-      
-      <p>Please find attached the Q4 Financial Report for your review. This document contains:</p>
-      
-      <ul>
-        <li>Revenue analysis for Q4 2024</li>
-        <li>Expense breakdown by department</li>
-        <li>Year-over-year comparison</li>
-        <li>Projected forecasts for Q1 2025</li>
-      </ul>
-      
-      <p>Key highlights:</p>
-      <ul>
-        <li>Total revenue increased by 15% compared to Q3</li>
-        <li>Operating expenses reduced by 8%</li>
-        <li>Net profit margin improved to 22%</li>
-      </ul>
-      
-      <p>Please review and provide your feedback by end of day Friday.</p>
-      
-      <p>Best regards,<br/>
-      John Doe<br/>
-      Financial Analyst</p>
-    </div>
-  `,
-  attachments: [
-    { name: "Q4_Financial_Report.pdf", size: 2456789, hash: "a1b2c3d4e5f6..." },
-    { name: "Revenue_Charts.xlsx", size: 156234, hash: "f6e5d4c3b2a1..." },
-    { name: "Expense_Analysis.docx", size: 89012, hash: "1a2b3c4d5e6f..." },
-  ],
-  metadata: {
-    protocol: "SMTP",
-    messageId: "<abc123@mail.example.com>",
-    sourceIp: "203.0.113.50",
-    destinationIp: "192.168.1.100",
-    contentType: "multipart/mixed",
-    receivedAt: "2024-01-15 14:32:00",
-    radiusCorrelated: true,
-    cgnatCorrelated: false,
-  },
-};
+
+import React, { useEffect, useState } from "react";
+
+interface EmailDetail {
+  timestamp: string;
+  email: {
+    from: string;
+    to: string[];
+    cc: string[];
+    bcc: string[];
+  };
+  message: {
+    message_id: string;
+    subject: string;
+    content_type: string;
+    body_text: string;
+    body_html: string | null;
+  };
+  network: {
+    protocol: string;
+    source?: {
+      ip?: string;
+      port?: string;
+      is_private?: boolean;
+    };
+    destination?: {
+      ip?: string;
+      port?: string;
+      is_private?: boolean;
+    };
+  };
+  attachments: any[];
+  correlation: any;
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -85,235 +68,124 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+
 export default function EmailViewerPage() {
   const params = useParams();
   const router = useRouter();
-  const emailId = params.id;
+  const [email, setEmail] = useState<EmailDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchEmail() {
+      setLoading(true);
+      const res = await fetch(`/api/email-search?id=${params.id}`);
+      const data = await res.json();
+      const hit = data.hits?.hits?.[0]?._source;
+      setEmail(hit || null);
+      setLoading(false);
+    }
+    if (params.id) fetchEmail();
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <CheckCircle className="animate-spin h-8 w-8 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!email) {
+    return <div className="p-8">Email not found.</div>;
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold tracking-tight">Email Viewer</h2>
-          <p className="text-muted-foreground">
-            Viewing email ID: {emailId}
-          </p>
-        </div>
-        <Button>
-          <Download className="mr-2 h-4 w-4" />
-          Download EML
-        </Button>
-      </div>
+    <div className="max-w-3xl mx-auto p-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>{email.message.subject || "(No Subject)"}</CardTitle>
+          <CardDescription>
+            <span className="font-mono text-xs">Message-ID: {email.message.message_id}</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Meta-Data Section */}
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div><strong>Time-Stamp:</strong> {email.timestamp ? new Date(email.timestamp).toLocaleString() : "-"}</div>
+              {email.correlation?.radius?.msisdn && (
+                <div><strong>MSISDN:</strong> {email.correlation.radius.msisdn}</div>
+              )}
+              <div><strong>Protocol:</strong> {email.network.protocol || "-"}</div>
+              <div><strong>Content-Type:</strong> {email.message.content_type || "-"}</div>
+              <div><strong>Correlation:</strong> <span className="text-xs">{email.correlation && (JSON.stringify(email.correlation))}</span></div>
+            </div>
+            <div>
+              <div><strong>Source IP:</strong> {email.network.source?.ip || "-"} <strong>Port:</strong> {email.network.source?.port || "-"}</div>
+              <div><strong>Destination IP:</strong> {email.network.destination?.ip || "-"} <strong>Port:</strong> {email.network.destination?.port || "-"}</div>
+              {email.network.source?.public_ip && (
+                <div><strong>Public IP:</strong> {email.network.source.public_ip}</div>
+              )}
+            </div>
+          </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Email Content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Headers */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{mockEmail.subject}</CardTitle>
-              <CardDescription className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                {mockEmail.from}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-2 text-sm">
-                <div className="flex">
-                  <span className="w-16 font-medium text-muted-foreground">
-                    To:
-                  </span>
-                  <span>{mockEmail.to.join(", ")}</span>
-                </div>
-                {mockEmail.cc.length > 0 && (
-                  <div className="flex">
-                    <span className="w-16 font-medium text-muted-foreground">
-                      Cc:
-                    </span>
-                    <span>{mockEmail.cc.join(", ")}</span>
-                  </div>
-                )}
-                {mockEmail.bcc.length > 0 && (
-                  <div className="flex">
-                    <span className="w-16 font-medium text-muted-foreground">
-                      Bcc:
-                    </span>
-                    <span>{mockEmail.bcc.join(", ")}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Body */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Email Body</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[400px] w-full rounded-md border p-4">
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: mockEmail.body }}
-                />
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
+          {/* Email Fields */}
+          <div className="mb-4">
+            <div><strong>From:</strong> {email.email.from}</div>
+            <div><strong>To:</strong> {email.email.to.join(", ")}</div>
+            {email.email.cc.length > 0 && <div><strong>Cc:</strong> {email.email.cc.join(", ")}</div>}
+            {email.email.bcc.length > 0 && <div><strong>Bcc:</strong> {email.email.bcc.join(", ")}</div>}
+          </div>
+          <div className="mb-4">
+            <strong>Body:</strong>
+            <div className="border rounded p-2 bg-muted mt-2 whitespace-pre-wrap">
+              {email.message.body_text || email.message.body_html || "(No content)"}
+            </div>
+          </div>
           {/* Attachments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Paperclip className="h-4 w-4" />
-                Attachments ({mockEmail.attachments.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {mockEmail.attachments.map((attachment, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium text-sm">{attachment.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatFileSize(attachment.size)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <code className="text-xs text-muted-foreground font-mono">
-                        {attachment.hash}
-                      </code>
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+          <div className="mb-4">
+            <strong>Attachments:</strong>
+            {email.attachments.length === 0 ? (
+              <div className="text-muted-foreground">No attachments</div>
+            ) : (
+              <ul className="list-disc ml-6">
+                {email.attachments.map((att, idx) => (
+                  <li key={idx} className="mb-2">
+                    <div><strong>File Name:</strong> {att.file_name}</div>
+                    <div><strong>MIME Type:</strong> {att.mime_type}</div>
+                    <div><strong>File Size:</strong> {att.file_size} bytes</div>
+                    <div><strong>File Hash:</strong> {att.file_hash}</div>
+                    <Button variant="outline" size="sm" className="mt-1">
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Attachment
+                    </Button>
+                  </li>
                 ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Metadata Panel */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Metadata</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Protocol</span>
-                  <Badge variant="secondary" className="ml-auto">
-                    {mockEmail.metadata.protocol}
-                  </Badge>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-start gap-2">
-                  <Hash className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-muted-foreground block">
-                      Message-ID
-                    </span>
-                    <code className="text-xs font-mono break-all">
-                      {mockEmail.metadata.messageId}
-                    </code>
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Source IP</span>
-                  <code className="ml-auto text-sm font-mono">
-                    {mockEmail.metadata.sourceIp}
-                  </code>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Destination IP
-                  </span>
-                  <code className="ml-auto text-sm font-mono">
-                    {mockEmail.metadata.destinationIp}
-                  </code>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Content Type
-                  </span>
-                  <code className="ml-auto text-xs font-mono">
-                    {mockEmail.metadata.contentType}
-                  </code>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Received</span>
-                  <span className="ml-auto text-sm">
-                    {mockEmail.metadata.receivedAt}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Correlation Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">RADIUS Correlation</span>
-                {mockEmail.metadata.radiusCorrelated ? (
-                  <Badge className="bg-success text-success-foreground">
-                    <CheckCircle className="mr-1 h-3 w-3" />
-                    Matched
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive">
-                    <XCircle className="mr-1 h-3 w-3" />
-                    Unmatched
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">CGNAT Correlation</span>
-                {mockEmail.metadata.cgnatCorrelated ? (
-                  <Badge className="bg-success text-success-foreground">
-                    <CheckCircle className="mr-1 h-3 w-3" />
-                    Matched
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive">
-                    <XCircle className="mr-1 h-3 w-3" />
-                    Unmatched
-                  </Badge>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+              </ul>
+            )}
+          </div>
+            <Button variant="outline" size="sm" className="mt-2" onClick={async () => {
+              if (!params.id) return;
+              const res = await fetch(`/api/email-download?id=${params.id}`);
+              if (!res.ok) return;
+              const blob = await res.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `email_${params.id}.eml`;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(url);
+            }}>
+              <Download className="mr-2 h-4 w-4" />
+              Download Email (EML)
+            </Button>
+        </CardContent>
+      </Card>
+      <Button variant="ghost" className="mt-4" onClick={() => router.back()}>
+        Back
+      </Button>
     </div>
   );
 }
