@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,30 +104,8 @@ const mockUsers: User[] = [
   },
 ];
 
-function getRoleBadge(role: string) {
-  switch (role) {
-    case "admin":
-      return "bg-destructive/20 text-destructive";
-    case "wl_viewer":
-      return "bg-warning/20 text-warning-foreground";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-}
-
-function getRoleLabel(role: string) {
-  switch (role) {
-    case "admin":
-      return "Administrator";
-    case "wl_viewer":
-      return "WL+Viewer";
-    default:
-      return "Viewer";
-  }
-}
-
 export default function UserAdminPage() {
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [retentionDays, setRetentionDays] = useState("30");
   const [showRetentionDialog, setShowRetentionDialog] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
@@ -139,6 +117,17 @@ export default function UserAdminPage() {
     password: "",
     role: "viewer" as User["role"],
   });
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      const res = await fetch("/api/users");
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      }
+    };
+    loadUsers();
+  }, []);
 
   const handleRetentionUpdate = async () => {
     setIsLoading(true);
@@ -154,43 +143,94 @@ export default function UserAdminPage() {
       return;
     }
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setUsers([
-      ...users,
-      {
-        id: String(users.length + 1),
-        username: newUser.username,
-        role: newUser.role,
-        lastLogin: "Never",
-        status: "inactive",
-      },
-    ]);
-    setShowAddUserDialog(false);
-    setNewUser({ username: "", password: "", role: "viewer" });
+
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newUser),
+    });
+
+    if (res.ok) {
+      const reload = await fetch("/api/users");
+      const data = await reload.json();
+      setUsers(data.users || []);
+      setShowAddUserDialog(false);
+      setNewUser({ username: "", password: "", role: "viewer" });
+      toast.success(`User "${newUser.username}" created successfully`);
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to create user");
+    }
+
     setIsLoading(false);
-    toast.success(`User "${newUser.username}" created successfully`);
   };
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setUsers(users.filter((u) => u.id !== selectedUser.id));
+
+    const res = await fetch("/api/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedUser.id }),
+    });
+
+    if (res.ok) {
+      setUsers(users.filter((u) => u.id !== selectedUser.id));
+      toast.success(`User "${selectedUser.username}" deleted`);
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to delete user");
+    }
+
     setShowDeleteDialog(false);
     setSelectedUser(null);
     setIsLoading(false);
-    toast.success(`User "${selectedUser.username}" deleted`);
   };
 
   const handleRoleChange = async (userId: string, newRole: User["role"]) => {
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setUsers(
-      users.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
-    );
+
+    const res = await fetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: userId, role: newRole }),
+    });
+
+    if (res.ok) {
+      setUsers(
+        users.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+      );
+      toast.success("User role updated");
+    } else {
+      const err = await res.json();
+      toast.error(err.error || "Failed to update role");
+    }
+
     setIsLoading(false);
-    toast.success("User role updated");
   };
+
+  function getRoleBadge(role: string) {
+    switch (role) {
+      case "admin":
+        return "bg-destructive/20 text-destructive";
+      case "wl_viewer":
+        return "bg-warning/20 text-warning-foreground";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  }
+
+  function getRoleLabel(role: string) {
+    switch (role) {
+      case "admin":
+        return "Administrator";
+      case "wl_viewer":
+        return "WL+Viewer";
+      default:
+        return "Viewer";
+    }
+  }
 
   return (
     <div className="space-y-6">

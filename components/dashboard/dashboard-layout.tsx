@@ -127,9 +127,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-background">
       {/* Desktop Sidebar */}
-      <aside
+       <aside
         className={cn(
-          "hidden lg:flex flex-col border-r border-border bg-sidebar transition-all duration-300",
+          "flex flex-col border-r border-border bg-sidebar transition-all duration-300",
           sidebarCollapsed ? "w-16" : "w-64"
         )}
       >

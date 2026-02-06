@@ -1,4 +1,4 @@
-"use client";
+/*"use client";
 
 import React from "react"
 
@@ -30,5 +30,18 @@ export default function DashboardRootLayout({
     );
   }
 
+  return <DashboardLayout>{children}</DashboardLayout>;
+}
+*/
+"use client";
+
+import React from "react";
+import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
+
+export default function DashboardRootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return <DashboardLayout>{children}</DashboardLayout>;
 }

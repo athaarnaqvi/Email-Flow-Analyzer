@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+//import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EncryptionChart } from "@/components/dashboard/charts/encryption-chart";
 import { CgnatChart } from "@/components/dashboard/charts/cgnat-chart";
@@ -21,6 +21,14 @@ const servers = [
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState("");
+
+  
+  useEffect(() => {
+    setLastUpdated(new Date().toLocaleString());
+  }, []);
+
+  /*
   const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
 
@@ -38,14 +46,13 @@ export default function DashboardPage() {
       setAuthChecked(true);
     }
   }, [router]);
-
-  useEffect(() => {
-    if (!authChecked) return;
+*/
+   useEffect(() => {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((data) => setStats(data))
       .catch((err) => console.error(err));
-  }, [authChecked]);
+  }, []);
 
   const protocolData = stats?.protocols?.map((b: any) => ({ name: b.key, value: b.doc_count })) || [];
   const cgnatData = stats?.cgnat?.map((b: any) => ({ name: b.key_as_string === "true" ? "Matched" : "Unmatched", value: b.doc_count })) || [];
@@ -55,14 +62,13 @@ export default function DashboardPage() {
     value: b.doc_count
   })) || [];
 
-  if (!authChecked) return null;
 
   return (
-    <div className="space-y-6">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight">Statistics Dashboard</h2>
         <p className="text-sm text-muted-foreground">
-          Last updated: {new Date().toLocaleString()}
+          Last updated: {lastUpdated || "—"}
         </p>
       </div>
 

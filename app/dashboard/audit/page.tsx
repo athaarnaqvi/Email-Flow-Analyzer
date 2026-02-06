@@ -29,13 +29,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  Search,
-  Filter,
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
   FileText,
   Activity,
+  Filter,
+  Search,
 } from "lucide-react";
 
 interface DashboardLog {
@@ -52,7 +52,7 @@ interface ApplicationLog {
   timestamp: string;
   server: string;
   application: string;
-  level: "INFO" | "WARN" | "ERROR" | "DEBUG";
+  level: "DEBUG" | "INFO" | "WARN" | "ERROR" | "CRIT";
   message: string;
 }
 
@@ -198,6 +198,7 @@ function getLogLevelBadge(level: ApplicationLog["level"]) {
     WARN: "bg-warning/20 text-warning-foreground",
     ERROR: "bg-destructive/20 text-destructive",
     DEBUG: "bg-muted text-muted-foreground",
+    CRIT: "bg-destructive/30 text-destructive",
   };
   return styles[level];
 }
@@ -215,40 +216,146 @@ function getActionBadgeColor(action: string) {
   return "bg-muted text-muted-foreground";
 }
 
+type SortDirection = "asc" | "desc";
+type DashboardSortKey = keyof DashboardLog;
+type AppSortKey = Exclude<keyof ApplicationLog, "message">;
+
+function toLocalTimestamp(value: string) {
+  const parsed = new Date(value.replace(" ", "T"));
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function getSortableTimestamp(value: string) {
+  const parsed = new Date(value.replace(" ", "T"));
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function sortByKey<T>(
+  items: T[],
+  key: keyof T,
+  direction: SortDirection,
+  numeric = false
+) {
+  const sorted = [...items].sort((a, b) => {
+    const av = a[key] as unknown as string | number;
+    const bv = b[key] as unknown as string | number;
+    if (numeric) {
+      return (Number(av) - Number(bv)) * (direction === "asc" ? 1 : -1);
+    }
+    return String(av).localeCompare(String(bv)) * (direction === "asc" ? 1 : -1);
+  });
+  return sorted;
+}
+
+function toggleSort<T extends string>(
+  current: { key: T; direction: SortDirection },
+  nextKey: T
+): { key: T; direction: SortDirection } {
+  if (current.key === nextKey) {
+    return {
+      key: nextKey,
+      direction: current.direction === "asc" ? "desc" : "asc",
+    };
+  }
+  return { key: nextKey, direction: "asc" };
+}
+
+type UserRole = "admin" | "viewer" | "wl_viewer" | null;
+
 export default function AuditLogsPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [levelFilter, setLevelFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
   const itemsPerPage = 5;
 
-  const filteredDashboardLogs = mockDashboardLogs.filter(
-    (log) =>
-      log.user.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.target.toLowerCase().includes(searchQuery.toLowerCase())
+  const [dashboardSort, setDashboardSort] = useState<{
+    key: DashboardSortKey;
+    direction: SortDirection;
+  }>({ key: "timestamp", direction: "desc" });
+
+  const [appSort, setAppSort] = useState<{
+    key: AppSortKey;
+    direction: SortDirection;
+  }>({ key: "timestamp", direction: "desc" });
+
+  const [dashboardFilters, setDashboardFilters] = useState<
+    Record<DashboardSortKey, string>
+  >({
+    id: "",
+    user: "",
+    role: "",
+    timestamp: "",
+    action: "",
+    target: "",
+  });
+
+  const [appFilters, setAppFilters] = useState<Record<AppSortKey, string>>({
+    id: "",
+    timestamp: "",
+    server: "",
+    application: "",
+    level: "",
+  });
+
+  const [levelFilter, setLevelFilter] = useState("all");
+
+  const filteredDashboardLogs = mockDashboardLogs.filter((log) =>
+    (Object.keys(dashboardFilters) as DashboardSortKey[]).every((key) => {
+      const val = dashboardFilters[key].trim().toLowerCase();
+      if (!val) return true;
+      return String(log[key]).toLowerCase().includes(val);
+    })
   );
 
-  const filteredApplicationLogs = mockApplicationLogs.filter(
-    (log) =>
-      (levelFilter === "all" || log.level === levelFilter) &&
-      (log.server.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.application.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.message.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredApplicationLogs = mockApplicationLogs.filter((log) =>
+    (Object.keys(appFilters) as AppSortKey[]).every((key) => {
+      const val = appFilters[key].trim().toLowerCase();
+      if (!val) return true;
+      return String(log[key]).toLowerCase().includes(val);
+    })
+  ).filter((log) => (levelFilter === "all" ? true : log.level === levelFilter));
 
-  const paginatedDashboardLogs = filteredDashboardLogs.slice(
+  const sortedDashboardLogs =
+    dashboardSort.key === "timestamp"
+      ? sortByKey(
+          filteredDashboardLogs.map((l) => ({
+            ...l,
+            __ts: getSortableTimestamp(l.timestamp),
+          })),
+          "__ts" as keyof (DashboardLog & { __ts: number }),
+          dashboardSort.direction,
+          true
+        ).map(({ __ts, ...rest }) => rest)
+      : sortByKey(filteredDashboardLogs, dashboardSort.key, dashboardSort.direction);
+
+  const sortedApplicationLogs =
+    appSort.key === "timestamp"
+      ? sortByKey(
+          filteredApplicationLogs.map((l) => ({
+            ...l,
+            __ts: getSortableTimestamp(l.timestamp),
+          })),
+          "__ts" as keyof (ApplicationLog & { __ts: number }),
+          appSort.direction,
+          true
+        ).map(({ __ts, ...rest }) => rest)
+      : sortByKey(filteredApplicationLogs, appSort.key, appSort.direction);
+
+  const paginatedDashboardLogs = sortedDashboardLogs.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
-  const paginatedApplicationLogs = filteredApplicationLogs.slice(
+  const paginatedApplicationLogs = sortedApplicationLogs.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
   const totalDashboardPages = Math.ceil(filteredDashboardLogs.length / itemsPerPage);
   const totalApplicationPages = Math.ceil(filteredApplicationLogs.length / itemsPerPage);
+
+
 
   return (
     <div className="space-y-6">
@@ -322,16 +429,126 @@ export default function AuditLogsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[120px]">User</TableHead>
-                      <TableHead className="w-[120px]">Role</TableHead>
+                      <TableHead className="w-[120px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setDashboardSort((s) => toggleSort(s, "user"))
+                          }
+                        >
+                          User
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="w-[120px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setDashboardSort((s) => toggleSort(s, "role"))
+                          }
+                        >
+                          Role
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
                       <TableHead className="w-[180px]">
-                        <Button variant="ghost" size="sm" className="h-8 -ml-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setDashboardSort((s) => toggleSort(s, "timestamp"))
+                          }
+                        >
                           Timestamp
                           <ArrowUpDown className="ml-2 h-4 w-4" />
                         </Button>
                       </TableHead>
-                      <TableHead className="w-[150px]">Action</TableHead>
-                      <TableHead>Target</TableHead>
+                      <TableHead className="w-[150px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setDashboardSort((s) => toggleSort(s, "action"))
+                          }
+                        >
+                          Action
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setDashboardSort((s) => toggleSort(s, "target"))
+                          }
+                        >
+                          Target
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>
+                        <Input
+                          value={dashboardFilters.user}
+                          onChange={(e) => {
+                            setDashboardFilters((f) => ({ ...f, user: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={dashboardFilters.role}
+                          onChange={(e) => {
+                            setDashboardFilters((f) => ({ ...f, role: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={dashboardFilters.timestamp}
+                          onChange={(e) => {
+                            setDashboardFilters((f) => ({
+                              ...f,
+                              timestamp: e.target.value,
+                            }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={dashboardFilters.action}
+                          onChange={(e) => {
+                            setDashboardFilters((f) => ({ ...f, action: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={dashboardFilters.target}
+                          onChange={(e) => {
+                            setDashboardFilters((f) => ({ ...f, target: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -351,7 +568,7 @@ export default function AuditLogsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {log.timestamp}
+                            {toLocalTimestamp(log.timestamp)}
                           </TableCell>
                           <TableCell>
                             <Badge
@@ -422,15 +639,104 @@ export default function AuditLogsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[180px]">
-                        <Button variant="ghost" size="sm" className="h-8 -ml-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setAppSort((s) => toggleSort(s, "timestamp"))
+                          }
+                        >
                           Timestamp
                           <ArrowUpDown className="ml-2 h-4 w-4" />
                         </Button>
                       </TableHead>
-                      <TableHead className="w-[130px]">Server</TableHead>
-                      <TableHead className="w-[150px]">Application</TableHead>
-                      <TableHead className="w-[80px]">Level</TableHead>
+                      <TableHead className="w-[130px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setAppSort((s) => toggleSort(s, "server"))
+                          }
+                        >
+                          Server
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="w-[150px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setAppSort((s) => toggleSort(s, "application"))
+                          }
+                        >
+                          Application
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="w-[80px]">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 -ml-3"
+                          onClick={() =>
+                            setAppSort((s) => toggleSort(s, "level"))
+                          }
+                        >
+                          Level
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
                       <TableHead>Message</TableHead>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>
+                        <Input
+                          value={appFilters.timestamp}
+                          onChange={(e) => {
+                            setAppFilters((f) => ({ ...f, timestamp: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={appFilters.server}
+                          onChange={(e) => {
+                            setAppFilters((f) => ({ ...f, server: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={appFilters.application}
+                          onChange={(e) => {
+                            setAppFilters((f) => ({
+                              ...f,
+                              application: e.target.value,
+                            }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead>
+                        <Input
+                          value={appFilters.level}
+                          onChange={(e) => {
+                            setAppFilters((f) => ({ ...f, level: e.target.value }));
+                            setCurrentPage(1);
+                          }}
+                          placeholder="Filter..."
+                        />
+                      </TableHead>
+                      <TableHead />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -444,7 +750,7 @@ export default function AuditLogsPage() {
                       paginatedApplicationLogs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-muted-foreground">
-                            {log.timestamp}
+                            {toLocalTimestamp(log.timestamp)}
                           </TableCell>
                           <TableCell className="font-mono text-sm">
                             {log.server}

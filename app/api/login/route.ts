@@ -36,8 +36,14 @@ export async function POST(req: NextRequest) {
   // Create JWT
   const token = jwt.sign({ username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
 
-  // Set cookie
+  // Set cookie (no secure for localhost, add sameSite)
   const res = NextResponse.json({ success: true });
-  res.cookies.set('token', token, { httpOnly: true, path: '/', maxAge: 60 * 60 * 24 });
+  res.cookies.set('token', token, {
+    httpOnly: true,
+    path: '/',
+    maxAge: 60 * 60 * 24,
+    sameSite: 'lax',
+    // secure: process.env.NODE_ENV === 'production', // Uncomment for production
+  });
   return res;
 }
