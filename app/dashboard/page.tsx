@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EncryptionChart } from "@/components/dashboard/charts/encryption-chart";
 import { CgnatChart } from "@/components/dashboard/charts/cgnat-chart";
@@ -17,15 +18,34 @@ const servers = [
   { name: "Server 05", cpu: 34, ram: 49, disk: 33 },
 ];
 
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const router = useRouter();
+
+  // JWT cookie check (client-side)
+  useEffect(() => {
+    function getCookie(name: string) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+    }
+    const token = getCookie("token");
+    if (!token) {
+      router.replace("/login");
+    } else {
+      setAuthChecked(true);
+    }
+  }, [router]);
 
   useEffect(() => {
+    if (!authChecked) return;
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((data) => setStats(data))
       .catch((err) => console.error(err));
-  }, []);
+  }, [authChecked]);
 
   const protocolData = stats?.protocols?.map((b: any) => ({ name: b.key, value: b.doc_count })) || [];
   const cgnatData = stats?.cgnat?.map((b: any) => ({ name: b.key_as_string === "true" ? "Matched" : "Unmatched", value: b.doc_count })) || [];
@@ -34,6 +54,8 @@ export default function DashboardPage() {
     time: new Date(b.key).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     value: b.doc_count
   })) || [];
+
+  if (!authChecked) return null;
 
   return (
     <div className="space-y-6">

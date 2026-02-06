@@ -1,10 +1,7 @@
 "use client";
 
-import React from "react"
-
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,47 +13,57 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Mail, Lock, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Lock, AlertCircle, User } from "lucide-react";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("viewer");
   const [error, setError] = useState("");
-  const { login, isLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
-    if (!username || !password) {
-      setError("Please enter both username and password");
+    if (!username || !password || !role) {
+      setError("Please fill all fields");
+      setIsLoading(false);
       return;
     }
 
-    const success = await login(username, password);
-    if (success) {
-      router.push("/dashboard");
+    const res = await fetch("/api/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, role }),
+    });
+    const data = await res.json();
+    setIsLoading(false);
+
+    if (data.success) {
+      router.push("/login");
     } else {
-      setError("Invalid username or password");
+      setError(data.error || "Signup failed");
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background" />
-      
+
       <Card className="relative w-full max-w-md border-border bg-card/95 backdrop-blur">
         <CardHeader className="space-y-4 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Mail className="h-7 w-7 text-primary-foreground" />
+            <User className="h-7 w-7 text-primary-foreground" />
           </div>
           <div className="space-y-1">
             <CardTitle className="text-2xl font-bold tracking-tight">
-              Email Flow Analyzer
+              Sign Up
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Network Intelligence Platform
+              Create your Email Flow Analyzer account
             </CardDescription>
           </div>
         </CardHeader>
@@ -105,6 +112,22 @@ export default function LoginPage() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="role" className="text-sm font-medium">
+                Role
+              </Label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full p-2 rounded bg-background border"
+                disabled={isLoading}
+              >
+                <option value="viewer">Viewer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
             <Button
               type="submit"
               className="w-full"
@@ -113,18 +136,24 @@ export default function LoginPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Authenticating...
+                  Creating Account...
                 </>
               ) : (
-                "Sign In"
+                "Sign Up"
               )}
             </Button>
           </form>
 
-          <div className="mt-6 rounded-lg border border-border bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground text-center">
-              Demo credentials: admin/admin123, viewer/viewer123, wlviewer/wlviewer123
-            </p>
+          <div className="mt-6 text-center">
+            <span className="text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <a
+                href="/login"
+                className="text-primary underline hover:no-underline"
+              >
+                Sign In
+              </a>
+            </span>
           </div>
         </CardContent>
       </Card>
