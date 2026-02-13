@@ -20,6 +20,12 @@ export async function GET(request: NextRequest) {
         const must: any[] = [];
         const filter: any[] = [];
 
+        // Base filter: only include actual email records (documents that have a
+        // timestamp and at least one sender). The index contains raw SMTP network
+        // packets alongside real emails — this filter excludes the non-email ones.
+        filter.push({ exists: { field: "timestamp" } });
+        filter.push({ exists: { field: "email.from" } });
+
         // Email address search: wildcard across from, to, cc, bcc (keyword fields)
         if (email) {
             const emailPattern = `*${email.toLowerCase()}*`;
@@ -80,7 +86,7 @@ export async function GET(request: NextRequest) {
                 query,
                 from: (page - 1) * size,
                 size,
-                sort: [{ [sortField]: { order: sortOrder } }],
+                sort: [{ [sortField]: { order: sortOrder, missing: "_last" } }],
                 // Highlight matched text fields to showcase OpenSearch highlighting
                 highlight: {
                     pre_tags: ["<mark>"],
