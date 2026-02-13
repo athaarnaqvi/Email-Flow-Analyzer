@@ -28,8 +28,10 @@ export default function DashboardPage() {
   }, []);
 
   const protocolData = stats?.protocols?.map((b: any) => ({ name: b.key, value: b.doc_count })) || [];
-  const cgnatData = stats?.cgnat?.map((b: any) => ({ name: b.key_as_string === "true" ? "Matched" : "Unmatched", value: b.doc_count })) || [];
-  const radiusData = stats?.radius?.map((b: any) => ({ name: b.key_as_string === "true" ? "Session Found" : "No Session", value: b.doc_count })) || [];
+  const boolToLabel = (key: any, yes: string, no: string) => (key === true || key === "true" ? yes : no);
+  const encryptionData = stats?.encryption?.map((b: any) => ({ name: boolToLabel(b.key, "Encrypted", "Unencrypted"), value: b.doc_count })) || [];
+  const cgnatData = stats?.cgnat?.map((b: any) => ({ name: boolToLabel(b.key, "Matched", "Unmatched"), value: b.doc_count })) || [];
+  const radiusData = stats?.radius?.map((b: any) => ({ name: boolToLabel(b.key, "Session Found", "No Session"), value: b.doc_count })) || [];
   const trafficData = stats?.traffic?.map((b: any) => ({
     time: new Date(b.key).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     value: b.doc_count
@@ -46,7 +48,7 @@ export default function DashboardPage() {
 
       {/* Pie Charts Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <EncryptionChart data={protocolData} />
+        <EncryptionChart data={encryptionData} />
         <CgnatChart data={cgnatData} />
         <RadiusCorrelationChart data={radiusData} />
         <ProtocolChart data={protocolData} />

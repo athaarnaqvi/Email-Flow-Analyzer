@@ -8,16 +8,14 @@ export async function GET() {
             body: {
                 size: 0,
                 query: {
-                    range: {
-                        timestamp: {
-                            gte: "now-5y",
-                            lte: "now"
-                        }
-                    }
+                    match_all: {}
                 },
                 aggs: {
                     protocols: {
                         terms: { field: "network.protocol", size: 10 }
+                    },
+                    encryption: {
+                        terms: { field: "smtp.is_starttls", size: 2 }
                     },
                     cgnat: {
                         terms: { field: "correlation.cgnat.matched", size: 2 }
@@ -44,6 +42,7 @@ export async function GET() {
 
         return NextResponse.json({
             protocols: aggs?.protocols?.buckets || [],
+             encryption: aggs?.encryption?.buckets || [],
             cgnat: aggs?.cgnat?.buckets || [],
             radius: aggs?.radius?.buckets || [],
             traffic: aggs?.traffic_over_time?.buckets || []
