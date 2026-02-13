@@ -89,8 +89,10 @@ function getRoleLabel(role: string): string {
   switch (role) {
     case "admin":
       return "Administrator";
-    case "wl_viewer":
-      return "WL+Viewer";
+    case "whitelist":
+      return "Whitelist Manager";
+    case "viewer":
+      return "Viewer";
     default:
       return "Viewer";
   }
@@ -100,8 +102,10 @@ function getRoleBadgeColor(role: string): string {
   switch (role) {
     case "admin":
       return "bg-destructive/20 text-destructive";
-    case "wl_viewer":
+    case "whitelist":
       return "bg-warning/20 text-warning-foreground";
+    case "viewer":
+      return "bg-primary/20 text-primary";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -178,7 +182,7 @@ export default function ProfilePage() {
               <Avatar className="h-24 w-24">
                 <AvatarImage src={user?.profilePicture || "/placeholder.svg"} />
                 <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                  {user?.username?.charAt(0).toUpperCase()}
+                  {user?.email?.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <Button
@@ -191,7 +195,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="text-center">
-              <h3 className="text-lg font-semibold">{user?.username}</h3>
+              <h3 className="text-lg font-semibold">{user?.email}</h3>
               <Badge className={cn("mt-1", getRoleBadgeColor(user?.role || "viewer"))}>
                 {getRoleLabel(user?.role || "viewer")}
               </Badge>

@@ -61,7 +61,7 @@ import { toast } from "sonner";
 interface User {
   id: string;
   username: string;
-  role: "admin" | "viewer" | "wl_viewer";
+  role: "admin" | "viewer" | "whitelist";
   lastLogin: string;
   status: "active" | "inactive";
 }
@@ -83,8 +83,8 @@ const mockUsers: User[] = [
   },
   {
     id: "3",
-    username: "wlviewer",
-    role: "wl_viewer",
+    username: "wlmanager",
+    role: "whitelist",
     lastLogin: "2024-01-14 16:45:00",
     status: "active",
   },
@@ -98,7 +98,7 @@ const mockUsers: User[] = [
   {
     id: "5",
     username: "supervisor",
-    role: "wl_viewer",
+    role: "whitelist",
     lastLogin: "2024-01-15 08:00:00",
     status: "active",
   },
@@ -108,8 +108,10 @@ function getRoleBadge(role: string) {
   switch (role) {
     case "admin":
       return "bg-destructive/20 text-destructive";
-    case "wl_viewer":
+    case "whitelist":
       return "bg-warning/20 text-warning-foreground";
+    case "viewer":
+      return "bg-primary/20 text-primary";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -119,8 +121,10 @@ function getRoleLabel(role: string) {
   switch (role) {
     case "admin":
       return "Administrator";
-    case "wl_viewer":
-      return "WL+Viewer";
+    case "whitelist":
+      return "Whitelist Manager";
+    case "viewer":
+      return "Viewer";
     default:
       return "Viewer";
   }
@@ -374,7 +378,7 @@ export default function UserAdminPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="wl_viewer">WL+Viewer</SelectItem>
+                        <SelectItem value="whitelist">Whitelist Manager</SelectItem>
                         <SelectItem value="admin">Administrator</SelectItem>
                       </SelectContent>
                     </Select>
@@ -457,11 +461,11 @@ export default function UserAdminPage() {
                             Set as Viewer
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => handleRoleChange(user.id, "wl_viewer")}
-                            disabled={user.role === "wl_viewer"}
+                            onClick={() => handleRoleChange(user.id, "whitelist")}
+                            disabled={user.role === "whitelist"}
                           >
                             <Shield className="mr-2 h-4 w-4" />
-                            Set as WL+Viewer
+                            Set as Whitelist Manager
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleRoleChange(user.id, "admin")}

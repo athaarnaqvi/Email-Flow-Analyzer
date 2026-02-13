@@ -44,31 +44,31 @@ const navItems: NavItem[] = [
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
-    roles: ["admin", "viewer", "wl_viewer"],
+    roles: ["admin", "viewer", "whitelist"],
   },
   {
     title: "Email Search",
     href: "/dashboard/search",
     icon: Search,
-    roles: ["admin", "viewer", "wl_viewer"],
+    roles: ["admin", "viewer", "whitelist"],
   },
   {
     title: "Whitelist",
     href: "/dashboard/whitelist",
     icon: Shield,
-    roles: ["admin", "wl_viewer"],
+    roles: ["admin", "whitelist"],
   },
   {
     title: "Bulk Operations",
     href: "/dashboard/bulk",
     icon: Upload,
-    roles: ["admin", "wl_viewer"],
+    roles: ["admin", "whitelist"],
   },
   {
     title: "Audit Logs",
     href: "/dashboard/audit",
     icon: FileText,
-    roles: ["admin", "wl_viewer"],
+    roles: ["admin", "whitelist"],
   },
   {
     title: "User Admin",
@@ -80,7 +80,7 @@ const navItems: NavItem[] = [
     title: "Profile",
     href: "/dashboard/profile",
     icon: User,
-    roles: ["admin", "viewer", "wl_viewer"],
+    roles: ["admin", "viewer", "whitelist"],
   },
 ];
 
@@ -90,8 +90,8 @@ function getRoleLabel(role: UserRole): string {
       return "Administrator";
     case "viewer":
       return "Viewer";
-    case "wl_viewer":
-      return "WL+Viewer";
+    case "whitelist":
+      return "Whitelist Manager";
     default:
       return "Unknown";
   }
@@ -101,8 +101,10 @@ function getRoleBadgeColor(role: UserRole): string {
   switch (role) {
     case "admin":
       return "bg-destructive/20 text-destructive";
-    case "wl_viewer":
+    case "whitelist":
       return "bg-warning/20 text-warning-foreground";
+    case "viewer":
+      return "bg-primary/20 text-primary";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -273,11 +275,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={user?.profilePicture || "/placeholder.svg"} />
                     <AvatarFallback className="bg-primary/10 text-primary">
-                      {user?.username?.charAt(0).toUpperCase()}
+                      {user?.email?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden flex-col items-start md:flex">
-                    <span className="text-sm font-medium">{user?.username}</span>
+                    <span className="text-sm font-medium">{user?.email}</span>
                     <span
                       className={cn(
                         "text-xs px-1.5 py-0.5 rounded",
