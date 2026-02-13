@@ -17,16 +17,20 @@ interface EncryptionChartProps {
 export function EncryptionChart({ data = [] }: EncryptionChartProps) {
   return (
     <Card>
-      <CardHeader className="pb-2">
+        <CardHeader className="pb-2">
         <CardTitle className="text-base font-medium">Email Encryption</CardTitle>
-        <CardDescription>Last 1 hour</CardDescription>
+        <CardDescription>All Data</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie
-                data={data}
+              {(() => {
+                const visibleData = data.filter((d) => Number(d.value) > 0);
+                const useData = visibleData.length ? visibleData : data;
+                return (
+                  <Pie
+                    data={useData}
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
@@ -37,7 +41,9 @@ export function EncryptionChart({ data = [] }: EncryptionChartProps) {
                 {data.map((entry, index) => (
                   <Cell key={`cell-${entry.name}`} fill={COLORS[index % COLORS.length]} />
                 ))}
-              </Pie>
+               </Pie>
+                );
+              })()}
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(var(--popover))",
@@ -45,7 +51,12 @@ export function EncryptionChart({ data = [] }: EncryptionChartProps) {
                   borderRadius: "8px",
                   color: "hsl(var(--popover-foreground))",
                 }}
-                formatter={(value: number) => [`${value}%`, ""]}
+                formatter={(value: any) => {
+                  const visibleData = data.filter((d) => Number(d.value) > 0);
+                  const total = visibleData.length ? visibleData.reduce((s, d) => s + (Number(d.value) || 0), 0) : data.reduce((s, d) => s + (Number(d.value) || 0), 0);
+                  const pct = total > 0 ? ((Number(value) || 0) / total) * 100 : 0;
+                  return [`${pct.toFixed(1)}%`, ""];
+                }}
               />
               <Legend
                 verticalAlign="bottom"
