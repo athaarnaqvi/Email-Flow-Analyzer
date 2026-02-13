@@ -4,6 +4,7 @@ import React from "react"
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Mail, Lock, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [credential, setCredential] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const { login, isLoading } = useAuth();
@@ -29,16 +30,16 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    if (!username || !password) {
-      setError("Please enter both username and password");
+    if (!credential || !password) {
+      setError("Please enter both username/email and password");
       return;
     }
 
-    const success = await login(username, password);
+    const success = await login(credential, password);
     if (success) {
       router.push("/dashboard");
     } else {
-      setError("Invalid username or password");
+      setError("Invalid username/email or password");
     }
   };
 
@@ -70,17 +71,17 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium">
-                Username
+              <Label htmlFor="credential" className="text-sm font-medium">
+                Username or Email
               </Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  id="username"
+                  id="credential"
                   type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter your username or email"
+                  value={credential}
+                  onChange={(e) => setCredential(e.target.value)}
                   className="pl-10 bg-background"
                   disabled={isLoading}
                 />
@@ -121,10 +122,22 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 rounded-lg border border-border bg-muted/50 p-3">
-            <p className="text-xs text-muted-foreground text-center">
-              Demo credentials: admin/admin123, viewer/viewer123, wlviewer/wlviewer123
-            </p>
+          <div className="mt-6 space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-card px-2 text-muted-foreground">
+                  New to Email Flow Analyzer?
+                </span>
+              </div>
+            </div>
+            <Link href="/signup">
+              <Button type="button" variant="outline" className="w-full">
+                Create Account
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
