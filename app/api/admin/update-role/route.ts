@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateUserRole, initializeUsersIndex } from "@/lib/opensearch-index-init";
+import { client } from "@/lib/opensearch";
 import { verifyJWTMiddleware, isAdmin } from "@/lib/auth-middleware";
 
 export async function PUT(request: NextRequest) {
@@ -43,6 +44,13 @@ export async function PUT(request: NextRequest) {
         { error: "User not found or update failed" },
         { status: 404 }
       );
+    }
+
+    // Ensure update is visible
+    try {
+      await client.indices.refresh({ index: "users" });
+    } catch (err) {
+      console.warn("Failed to refresh users index after role update:", err);
     }
 
     return NextResponse.json(

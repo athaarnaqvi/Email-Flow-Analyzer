@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail, createUser, initializeUsersIndex } from "@/lib/opensearch-index-init";
+import { client } from "@/lib/opensearch";
 import { hashPassword } from "@/lib/auth-utils";
 
 export async function POST(request: NextRequest) {
@@ -43,6 +44,13 @@ export async function POST(request: NextRequest) {
       password: hashPassword(password),
       role: "viewer",
     });
+
+    // Ensure new document is visible for subsequent searches
+    try {
+      await client.indices.refresh({ index: "users" });
+    } catch (err) {
+      console.warn("Failed to refresh users index after signup:", err);
+    }
 
     return NextResponse.json(
       {

@@ -113,6 +113,7 @@ export async function createUser(userData: Omit<UserDocument, "created_at">): Pr
   try {
     const response = await client.index({
       index: USERS_INDEX,
+      refresh: 'wait_for',
       body: {
         ...userData,
         email: userData.email.toLowerCase(),
@@ -137,46 +138,116 @@ export async function updateUserRole(
   role: "admin" | "viewer" | "whitelist"
 ): Promise<boolean> {
   try {
-    // First, get the user's ID
-    const user = await getUserByEmail(email);
-    if (!user) {
-      return false;
-    }
-
-    // Find the document ID
-    const response = await client.search({
-      index: USERS_INDEX,
-      body: {
-        query: {
-          term: {
-            email: email.toLowerCase(),
-          },
-        },
-      },
-    });
-
-    // Handle response format - OpenSearch client returns { body, statusCode, headers, meta }
-    const searchResult = response.body || response;
-    if (!searchResult || !searchResult.hits || !searchResult.hits.hits || searchResult.hits.hits.length === 0) {
-      return false;
-    }
-
-    const docId = searchResult.hits.hits[0]._id;
+    // Find the document by identifier (email or msisdn)
+    const found = await findUserByIdentifier(email);
+    if (!found) return false;
 
     // Update the role
     await client.update({
       index: USERS_INDEX,
-      id: docId,
-      body: {
-        doc: {
-          role,
-        },
-      },
+      id: found.id,
+      body: { doc: { role } },
     });
 
     return true;
   } catch (error) {
     console.error("Error updating user role:", error);
+    return false;
+  }
+}
+
+/**
+ * Get all users (limited to a reasonable size)
+ */
+export async function getAllUsers(): Promise<Array<Record<string, any>>> {
+  try {
+    const response = await client.search({
+      index: USERS_INDEX,
+      body: {
+        // return _source only
+        query: { match_all: {} },
+      },
+      size: 1000,
+    });
+
+    const result = response.body || response;
+    if (!result || !result.hits || !result.hits.hits) return [];
+
+    return result.hits.hits.map((h: any) => ({ _id: h._id, ...h._source }));
+  } catch (error) {
+    console.error("Error fetching all users:", error);
+    return [];
+  }
+}
+
+/**
+ * Find a user document by email OR msisdn. Returns {id, source} or null
+ */
+export async function findUserByIdentifier(identifier: string): Promise<{ id: string; source: any } | null> {
+  try {
+    const value = identifier.trim();
+    const response = await client.search({
+      index: USERS_INDEX,
+      body: {
+        query: {
+          bool: {
+            should: [
+              { term: { "email.keyword": { value: value.toLowerCase() } } },
+              { term: { "email": { value: value.toLowerCase() } } },
+              { term: { "username.keyword": { value: value.toLowerCase() } } },
+              { term: { "username": { value: value.toLowerCase() } } },
+              { term: { "msisdn.keyword": { value } } },
+              { term: { "msisdn": { value } } },
+            ],
+            minimum_should_match: 1,
+          },
+        },
+      },
+      size: 1,
+    });
+
+    const result = response.body || response;
+    if (!result || !result.hits || !result.hits.hits || result.hits.hits.length === 0) return null;
+
+    const hit = result.hits.hits[0];
+    return { id: hit._id, source: hit._source };
+  } catch (error) {
+    console.error("Error finding user by identifier:", error);
+    return null;
+  }
+}
+
+/**
+ * Update user role by document id
+ */
+export async function updateUserRoleById(id: string, role: "admin" | "viewer" | "whitelist") {
+  try {
+    await client.update({
+      index: USERS_INDEX,
+      id,
+      refresh: 'wait_for',
+      body: { doc: { role } },
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating role by id:", error);
+    return false;
+  }
+}
+
+/**
+ * Delete user by email
+ */
+export async function deleteUserByEmail(email: string): Promise<boolean> {
+  try {
+    // Use findUserByIdentifier so we match email, msisdn, or username
+    const found = await findUserByIdentifier(email);
+    if (!found) return false;
+
+    await client.delete({ index: USERS_INDEX, id: found.id, refresh: 'wait_for' });
+    return true;
+  } catch (error) {
+    console.error("Error deleting user by email:", error);
     return false;
   }
 }

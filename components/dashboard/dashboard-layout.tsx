@@ -53,8 +53,8 @@ const navItems: NavItem[] = [
     roles: ["admin", "viewer", "whitelist"],
   },
   {
-    title: "Whitelist",
-    href: "/dashboard/whitelist",
+    title: "User Management",
+    href: "/dashboard/user-management",
     icon: Shield,
     roles: ["admin", "whitelist"],
   },
@@ -70,12 +70,7 @@ const navItems: NavItem[] = [
     icon: FileText,
     roles: ["admin", "whitelist"],
   },
-  {
-    title: "User Admin",
-    href: "/dashboard/admin",
-    icon: Users,
-    roles: ["admin"],
-  },
+  // removed separate Admin entry; merged into User Management
   {
     title: "Profile",
     href: "/dashboard/profile",
