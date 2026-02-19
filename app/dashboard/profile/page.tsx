@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,15 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -31,59 +22,11 @@ import {
   Lock,
   Shield,
   Calendar,
-  Activity,
   CheckCircle,
   Loader2,
-  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface ActivityLog {
-  id: string;
-  timestamp: string;
-  action: string;
-  target: string;
-}
-
-const mockActivityLogs: ActivityLog[] = [
-  {
-    id: "1",
-    timestamp: "2024-01-15 14:32:00",
-    action: "LOGIN",
-    target: "System",
-  },
-  {
-    id: "2",
-    timestamp: "2024-01-15 14:30:00",
-    action: "EMAIL_SEARCH",
-    target: "domain:example.com",
-  },
-  {
-    id: "3",
-    timestamp: "2024-01-15 14:25:00",
-    action: "EMAIL_DOWNLOAD",
-    target: "msg-123456",
-  },
-  {
-    id: "4",
-    timestamp: "2024-01-15 14:20:00",
-    action: "WHITELIST_ADD",
-    target: "****@****.com",
-  },
-  {
-    id: "5",
-    timestamp: "2024-01-15 14:15:00",
-    action: "WHITELIST_DELETE",
-    target: "+***********",
-  },
-  {
-    id: "6",
-    timestamp: "2024-01-14 16:45:00",
-    action: "LOGOUT",
-    target: "System",
-  },
-];
 
 function getRoleLabel(role: string): string {
   switch (role) {
@@ -111,19 +54,6 @@ function getRoleBadgeColor(role: string): string {
   }
 }
 
-function getActionBadgeColor(action: string) {
-  if (action.includes("LOGIN") || action.includes("LOGOUT")) {
-    return "bg-chart-1/20 text-chart-1";
-  }
-  if (action.includes("WHITELIST")) {
-    return "bg-warning/20 text-warning-foreground";
-  }
-  if (action.includes("DELETE")) {
-    return "bg-destructive/20 text-destructive";
-  }
-  return "bg-muted text-muted-foreground";
-}
-
 export default function ProfilePage() {
   const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -131,35 +61,134 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  useEffect(() => {
+    console.log("Profile page mounted - User:", user);
+  }, [user]);
+
+  // Validate password in real-time
+  useEffect(() => {
+    const errors: string[] = [];
+
+    if (newPassword && newPassword.length < 8) {
+      errors.push("Password must be at least 8 characters");
+    }
+
+    if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+      errors.push("Passwords do not match");
+    }
+
+    if (newPassword && currentPassword === newPassword) {
+      errors.push("New password must be different from current password");
+    }
+
+    setValidationErrors(errors);
+  }, [newPassword, confirmPassword, currentPassword]);
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Password change clicked - user:", user);
     setPasswordSuccess(false);
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error("Please fill in all password fields");
+    // Validate all fields
+    const errors: string[] = [];
+
+    if (!currentPassword) {
+      errors.push("Current password is required");
+    }
+
+    if (!newPassword) {
+      errors.push("New password is required");
+    }
+
+    if (!confirmPassword) {
+      errors.push("Password confirmation is required");
+    }
+
+    if (newPassword && newPassword.length < 8) {
+      errors.push("New password must be at least 8 characters");
+    }
+
+    if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+      errors.push("New passwords do not match");
+    }
+
+    if (newPassword && currentPassword === newPassword) {
+      errors.push("New password must be different from current password");
+    }
+
+    if (errors.length > 0) {
+      console.warn("Validation errors:", errors);
+      setValidationErrors(errors);
+      toast.error(errors[0]);
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      toast.error("New passwords do not match");
+    if (!user?.email && !user?.id) {
+      console.error("No user identifier found");
+      setValidationErrors(["User identifier not found"]);
+      toast.error("User not properly authenticated");
       return;
     }
 
-    if (newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-
+    console.log("Starting password change for:", user.email || user.id);
     setIsChangingPassword(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setValidationErrors([]);
 
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setIsChangingPassword(false);
-    setPasswordSuccess(true);
-    toast.success("Password changed successfully");
+    try {
+      const payload = {
+        email: user.email, // This will be the identifier (email or username from auth context)
+        currentPassword,
+        newPassword,
+      };
+      console.log("Sending payload:", { ...payload, currentPassword: "***", newPassword: "***" });
+
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("Response status:", response.status);
+
+      if (!response.ok) {
+        try {
+          const error = await response.json();
+          console.error("API error response:", error);
+          const errorMsg = error.error || "Failed to change password";
+          setValidationErrors([errorMsg]);
+          toast.error(errorMsg);
+        } catch (parseError) {
+          console.error("Failed to parse error response:", parseError);
+          setValidationErrors(["Failed to change password"]);
+          toast.error("Failed to change password");
+        }
+        return;
+      }
+
+      const result = await response.json();
+      console.log("Password change successful:", result);
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setValidationErrors([]);
+      setPasswordSuccess(true);
+      toast.success("Password changed successfully");
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setPasswordSuccess(false);
+      }, 5000);
+    } catch (error) {
+      console.error("Password change exception:", error);
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      setValidationErrors([errorMsg]);
+      toast.error("Failed to change password: " + errorMsg);
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   return (
@@ -178,20 +207,10 @@ export default function ProfilePage() {
             <CardTitle className="text-base">Account Information</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">
-            <div className="relative">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={user?.profilePicture || "/placeholder.svg"} />
-                <AvatarFallback className="bg-primary/10 text-primary text-2xl">
-                  {user?.email?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <Button
-                variant="outline"
-                size="icon"
-                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-transparent"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
+            <div className="h-24 w-24 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+              <span className="text-3xl font-bold text-primary">
+                {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
+              </span>
             </div>
 
             <div className="text-center">
@@ -255,6 +274,19 @@ export default function ProfilePage() {
               </Alert>
             )}
 
+            {validationErrors.length > 0 && (
+              <Alert className="mb-4 border-destructive/50 bg-destructive/10">
+                <AlertTitle className="text-destructive">Validation Error</AlertTitle>
+                <AlertDescription className="text-destructive/90 mt-2">
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationErrors.map((error, idx) => (
+                      <li key={idx}>{error}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handlePasswordChange} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="currentPassword">Current Password</Label>
@@ -278,6 +310,9 @@ export default function ProfilePage() {
                     onChange={(e) => setNewPassword(e.target.value)}
                     disabled={isChangingPassword}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Minimum 8 characters required
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm New Password</Label>
@@ -292,7 +327,10 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button type="submit" disabled={isChangingPassword}>
+                <Button 
+                  type="submit" 
+                  disabled={isChangingPassword || validationErrors.length > 0}
+                >
                   {isChangingPassword ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -310,49 +348,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Activity Log */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Activity Log
-          </CardTitle>
-          <CardDescription>
-            Your recent activity (whitelist data masked for privacy)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[200px]">Timestamp</TableHead>
-                  <TableHead className="w-[150px]">Action</TableHead>
-                  <TableHead>Target</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockActivityLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-muted-foreground">
-                      {log.timestamp}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getActionBadgeColor(log.action)}>
-                        {log.action}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {log.target}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -99,7 +99,13 @@ export async function getUserByEmail(emailOrUsername: string): Promise<any> {
     }
 
     // Return the highest scored result (which will be the exact match if it exists)
-    return searchResult.hits.hits[0]._source;
+    // Include the _id for database operations
+    const hit = searchResult.hits.hits[0];
+    return {
+      _id: hit._id,
+      id: hit._id,
+      ...hit._source,
+    };
   } catch (error) {
     console.error("Error fetching user:", error);
     return null;
