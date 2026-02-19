@@ -10,6 +10,7 @@ import {
   Tooltip,
   Area,
   AreaChart,
+  TooltipProps,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -36,6 +37,27 @@ interface TrafficChartProps {
   color?: string;
 }
 
+const CustomTooltip = ({ active, payload, label, unit, title }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div
+        className="rounded-lg border border-border bg-popover p-3 shadow-md"
+        style={{
+          backgroundColor: "hsl(var(--popover))",
+          borderColor: "hsl(var(--border))",
+          color: "hsl(var(--popover-foreground))",
+        }}
+      >
+        <p className="font-semibold">{payload[0].payload?.time || label}</p>
+        <p className="text-sm">
+          {title}: {payload[0].value ? payload[0].value.toFixed(0) : 0} {unit}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export function TrafficChart({ title, description, data = [], unit, color = "#6366f1" }: TrafficChartProps) {
 
   return (
@@ -47,7 +69,7 @@ export function TrafficChart({ title, description, data = [], unit, color = "#63
       <CardContent>
         <div className="h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <AreaChart data={data} margin={{ top: 5, right: 20, left: 40, bottom: 5 }}>
               <defs>
                 <linearGradient id="gradient-traffic" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={color} stopOpacity={0.3} />
@@ -66,16 +88,12 @@ export function TrafficChart({ title, description, data = [], unit, color = "#63
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 tickLine={{ stroke: "hsl(var(--border))" }}
                 axisLine={{ stroke: "hsl(var(--border))" }}
-                tickFormatter={(value) => `${value.toFixed(1)}`}
+                tickFormatter={(value) => `${value.toFixed(0)}`}
               />
               <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  color: "hsl(var(--popover-foreground))",
-                }}
-                formatter={(value: number) => [`${value.toFixed(2)} ${unit}`, title]}
+                content={<CustomTooltip unit={unit} title={title} />}
+                cursor={{ strokeDasharray: "3 3" }}
+                wrapperStyle={{ outline: "none" }}
               />
               <Area
                 type="monotone"

@@ -74,11 +74,62 @@ export default function UserManagementPage() {
   const [wlEntryValue, setWlEntryValue] = useState("");
   const [wlEntryType, setWlEntryType] = useState<"msisdn" | "email">("msisdn");
 
+  // Data retention
+  const [retentionDays, setRetentionDays] = useState("30");
+  const [customDays, setCustomDays] = useState("");
+  const [isUpdatingRetention, setIsUpdatingRetention] = useState(false);
+
   useEffect(() => {
     if (role === "admin") {
       fetchUsers();
+      fetchRetentionPolicy();
     }
   }, [role]);
+
+  async function fetchRetentionPolicy() {
+    try {
+      const res = await fetch("/api/admin/retention-policy", { method: "GET", credentials: "same-origin" });
+      if (res.ok) {
+        const data = await res.json();
+        setRetentionDays(data.days?.toString() || "30");
+      }
+    } catch (err) {
+      console.error("Failed to fetch retention policy:", err);
+    }
+  }
+
+  async function handleUpdateRetention() {
+    const days = retentionDays === "custom" ? parseInt(customDays) : parseInt(retentionDays);
+    
+    if (isNaN(days) || days < 1) {
+      toast.error("Please enter a valid number of days");
+      return;
+    }
+
+    setIsUpdatingRetention(true);
+    try {
+      const res = await fetch("/api/admin/retention-policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ days }),
+      });
+
+      if (res.ok) {
+        toast.success(`Data retention policy updated to ${days} days`);
+        if (retentionDays !== "custom") {
+          setCustomDays("");
+        }
+      } else {
+        toast.error("Failed to update retention policy");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error updating retention policy");
+    } finally {
+      setIsUpdatingRetention(false);
+    }
+  }
 
   async function fetchUsers() {
     setLoadingUsers(true);
@@ -263,22 +314,45 @@ export default function UserManagementPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Retention Period (days)</Label>
-                <Select onValueChange={() => {}}>
+                <Label>Retention Period</Label>
+                <Select value={retentionDays} onValueChange={setRetentionDays}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="7">7 days</SelectItem>
+                    <SelectItem value="14">14 days</SelectItem>
                     <SelectItem value="30">30 days</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2">
-                <Button className="w-full">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Update Retention
-                </Button>
-              </div>
+              {retentionDays === "custom" && (
+                <div className="space-y-2">
+                  <Label>Number of Days</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value)}
+                    placeholder="Enter days (1-365)"
+                  />
+                </div>
+              )}
+              <Button onClick={handleUpdateRetention} disabled={isUpdatingRetention} className="w-full">
+                {isUpdatingRetention ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Update Retention
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
 
