@@ -1,8 +1,7 @@
 "use client";
 
+import { useId } from "react";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -10,24 +9,8 @@ import {
   Tooltip,
   Area,
   AreaChart,
-  TooltipProps,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-
-// Generate mock traffic data for 24 hours
-const generateTrafficData = (type: "radius" | "data") => {
-  const baseValue = type === "radius" ? 2.5 : 450;
-  const variance = type === "radius" ? 1.5 : 200;
-
-  return Array.from({ length: 24 }, (_, i) => {
-    const hour = new Date();
-    hour.setHours(hour.getHours() - (23 - i));
-    return {
-      time: hour.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      value: Math.max(0, baseValue + (Math.random() - 0.5) * variance * 2),
-    };
-  });
-};
 
 interface TrafficChartProps {
   title: string;
@@ -35,10 +18,17 @@ interface TrafficChartProps {
   data: { time: string; value: number }[];
   unit: string;
   color?: string;
+  chartId?: string;
+}
+
+function formatYAxis(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return `${value}`;
 }
 
 const CustomTooltip = ({ active, payload, label, unit, title }: any) => {
-  if (active && payload && payload.length) {
+  if (active && payload?.length) {
     return (
       <div
         className="rounded-lg border border-border bg-popover p-3 shadow-md"
@@ -50,7 +40,7 @@ const CustomTooltip = ({ active, payload, label, unit, title }: any) => {
       >
         <p className="font-semibold">{payload[0].payload?.time || label}</p>
         <p className="text-sm">
-          {title}: {payload[0].value ? payload[0].value.toFixed(0) : 0} {unit}
+          {title}: {Number(payload[0].value).toLocaleString()} {unit}
         </p>
       </div>
     );
@@ -58,7 +48,20 @@ const CustomTooltip = ({ active, payload, label, unit, title }: any) => {
   return null;
 };
 
-export function TrafficChart({ title, description, data = [], unit, color = "#6366f1" }: TrafficChartProps) {
+export function TrafficChart({
+  title,
+  description,
+  data = [],
+  unit,
+  color = "#6366f1",
+  chartId,
+}: TrafficChartProps) {
+  const fallbackId = useId();
+  const gradientId = `gradient-${chartId || fallbackId.replace(/:/g, "")}`;
+
+  const tickInterval = data.length <= 12
+    ? 0
+    : Math.max(1, Math.floor(data.length / 8));
 
   return (
     <Card>
@@ -69,9 +72,9 @@ export function TrafficChart({ title, description, data = [], unit, color = "#63
       <CardContent>
         <div className="h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 5, right: 20, left: 40, bottom: 5 }}>
+            <AreaChart data={data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <defs>
-                <linearGradient id="gradient-traffic" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={color} stopOpacity={0.3} />
                   <stop offset="95%" stopColor={color} stopOpacity={0} />
                 </linearGradient>
@@ -82,13 +85,17 @@ export function TrafficChart({ title, description, data = [], unit, color = "#63
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 tickLine={{ stroke: "hsl(var(--border))" }}
                 axisLine={{ stroke: "hsl(var(--border))" }}
-                interval="preserveStartEnd"
+                interval={tickInterval}
+                angle={-35}
+                textAnchor="end"
+                height={50}
               />
               <YAxis
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 tickLine={{ stroke: "hsl(var(--border))" }}
                 axisLine={{ stroke: "hsl(var(--border))" }}
-                tickFormatter={(value) => `${value.toFixed(0)}`}
+                tickFormatter={formatYAxis}
+                width={48}
               />
               <Tooltip
                 content={<CustomTooltip unit={unit} title={title} />}
@@ -100,7 +107,7 @@ export function TrafficChart({ title, description, data = [], unit, color = "#63
                 dataKey="value"
                 stroke={color}
                 strokeWidth={2}
-                fill="url(#gradient-traffic)"
+                fill={`url(#${gradientId})`}
               />
             </AreaChart>
           </ResponsiveContainer>

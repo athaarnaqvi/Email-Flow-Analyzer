@@ -23,13 +23,24 @@ export async function GET() {
                     radius: {
                         terms: { field: "correlation.radius.session_found", size: 2 }
                     },
-                    traffic_over_time: {
+                    traffic_monthly: {
                         date_histogram: {
                             field: "timestamp",
-                            fixed_interval: "1d", // 1 day interval for 5 years
+                            calendar_interval: "1M",
                             min_doc_count: 0,
                             extended_bounds: {
                                 min: "now-5y",
+                                max: "now"
+                            }
+                        }
+                    },
+                    traffic_daily: {
+                        date_histogram: {
+                            field: "timestamp",
+                            calendar_interval: "1d",
+                            min_doc_count: 0,
+                            extended_bounds: {
+                                min: "now-30d",
                                 max: "now"
                             }
                         }
@@ -42,10 +53,11 @@ export async function GET() {
 
         return NextResponse.json({
             protocols: aggs?.protocols?.buckets || [],
-             encryption: aggs?.encryption?.buckets || [],
+            encryption: aggs?.encryption?.buckets || [],
             cgnat: aggs?.cgnat?.buckets || [],
             radius: aggs?.radius?.buckets || [],
-            traffic: aggs?.traffic_over_time?.buckets || []
+            trafficMonthly: aggs?.traffic_monthly?.buckets || [],
+            trafficDaily: aggs?.traffic_daily?.buckets || [],
         });
     } catch (error) {
         console.error("OpenSearch query failed:", error);

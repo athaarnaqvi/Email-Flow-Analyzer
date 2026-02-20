@@ -32,10 +32,21 @@ export default function DashboardPage() {
   const encryptionData = stats?.encryption?.map((b: any) => ({ name: boolToLabel(b.key, "Encrypted", "Unencrypted"), value: b.doc_count })) || [];
   const cgnatData = stats?.cgnat?.map((b: any) => ({ name: boolToLabel(b.key, "Matched", "Unmatched"), value: b.doc_count })) || [];
   const radiusData = stats?.radius?.map((b: any) => ({ name: boolToLabel(b.key, "Session Found", "No Session"), value: b.doc_count })) || [];
-  const trafficData = stats?.traffic?.map((b: any) => ({
-    time: new Date(b.key).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    value: b.doc_count
-  })) || [];
+  const monthlyTrafficData = stats?.trafficMonthly?.map((b: any) => {
+    const d = new Date(b.key);
+    return {
+      time: d.toLocaleDateString([], { month: "short", year: "numeric" }),
+      value: b.doc_count,
+    };
+  }) || [];
+
+  const dailyTrafficData = stats?.trafficDaily?.map((b: any) => {
+    const d = new Date(b.key);
+    return {
+      time: d.toLocaleDateString([], { day: "numeric", month: "short" }),
+      value: b.doc_count,
+    };
+  }) || [];
 
   return (
     <div className="space-y-6">
@@ -58,17 +69,19 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <TrafficChart
           title="Total Traffic"
-          description="Emails processed in last 5 years"
-          data={trafficData}
+          description="Monthly email volume over the last 5 years"
+          data={monthlyTrafficData}
           unit="Emails"
           color="#6366f1"
+          chartId="total"
         />
         <TrafficChart
           title="Data RX Traffic"
-          description="Last 5 years (Mbps)"
-          data={trafficData}
-          unit="Mbps"
+          description="Daily email volume over the last 30 days"
+          data={dailyTrafficData}
+          unit="Emails"
           color="#22c55e"
+          chartId="rx"
         />
       </div>
 
