@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +32,6 @@ import {
   Search,
   Download,
   FileSpreadsheet,
-  Eye,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -69,88 +68,65 @@ interface SearchResponse {
   totalPages: number;
 }
 
-export default function EmailSearchPage() {
+function EmailSearchContent() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
+  const searchParams = useSearchParams();
+
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("email") || "");
   const [msisdn, setMsisdn] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [protocol, setProtocol] = useState("");
+  const [startDate, setStartDate] = useState(searchParams.get("startDate") || "");
+  const [endDate, setEndDate] = useState(searchParams.get("endDate") || "");
+  const [protocol, setProtocol] = useState(searchParams.get("protocol") || "");
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(
-    null
-  );
+  const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get("page")) || 1);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState("timestamp");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortField, setSortField] = useState(searchParams.get("sortField") || "timestamp");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(
+    (searchParams.get("sortOrder") as "asc" | "desc") || "desc"
+  );
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const itemsPerPage = 10;
 
-  const fetchResults = async (page: number) => {
-    setIsSearching(true);
-    setError(null);
-
-    try {
+  const updateUrlParams = useCallback(
+    (overrides: Record<string, string>) => {
       const params = new URLSearchParams();
-      if (searchQuery) params.set("email", searchQuery);
-      if (startDate) params.set("startDate", startDate);
-      if (endDate) params.set("endDate", endDate);
-      if (protocol && protocol !== "all") params.set("protocol", protocol);
-      params.set("page", page.toString());
-      params.set("size", itemsPerPage.toString());
-      params.set("sortField", sortField);
-      params.set("sortOrder", sortOrder);
-
-      const res = await fetch(`/api/search?${params.toString()}`);
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.details || errData.error || "Search failed");
+      const values: Record<string, string> = {
+        email: searchQuery,
+        startDate,
+        endDate,
+        protocol,
+        page: String(currentPage),
+        sortField,
+        sortOrder,
+        ...overrides,
+      };
+      for (const [key, val] of Object.entries(values)) {
+        if (val && val !== "all") params.set(key, val);
       }
-      const data: SearchResponse = await res.json();
-      setSearchResponse(data);
-      setCurrentPage(data.page);
-      setHasSearched(true);
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred");
-      setSearchResponse(null);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [searchQuery, startDate, endDate, protocol, currentPage, sortField, sortOrder, router]
+  );
 
-  const handleSearch = async () => {
-    setSelectedEmails([]);
-    await fetchResults(1);
-  };
-
-  const handlePageChange = async (page: number) => {
-    setSelectedEmails([]);
-    await fetchResults(page);
-  };
-
-  const handleSort = async (field: string) => {
-    const newOrder =
-      sortField === field && sortOrder === "desc" ? "asc" : "desc";
-    setSortField(field);
-    setSortOrder(newOrder);
-
-    // Re-fetch with new sort if we have already searched
-    if (hasSearched) {
+  const fetchResults = useCallback(
+    async (page: number, field?: string, order?: string) => {
       setIsSearching(true);
       setError(null);
+
       try {
         const params = new URLSearchParams();
         if (searchQuery) params.set("email", searchQuery);
         if (startDate) params.set("startDate", startDate);
         if (endDate) params.set("endDate", endDate);
         if (protocol && protocol !== "all") params.set("protocol", protocol);
-        params.set("page", "1");
+        params.set("page", page.toString());
         params.set("size", itemsPerPage.toString());
-        params.set("sortField", field);
-        params.set("sortOrder", newOrder);
+        params.set("sortField", field || sortField);
+        params.set("sortOrder", order || sortOrder);
 
         const res = await fetch(`/api/search?${params.toString()}`);
         if (!res.ok) {
@@ -159,12 +135,50 @@ export default function EmailSearchPage() {
         }
         const data: SearchResponse = await res.json();
         setSearchResponse(data);
-        setCurrentPage(1);
+        setCurrentPage(data.page);
+        setHasSearched(true);
       } catch (err: any) {
         setError(err.message || "An unexpected error occurred");
+        setSearchResponse(null);
       } finally {
         setIsSearching(false);
       }
+    },
+    [searchQuery, startDate, endDate, protocol, sortField, sortOrder]
+  );
+
+  useEffect(() => {
+    const hasParams = searchParams.get("email") || searchParams.get("startDate") || searchParams.get("endDate") || searchParams.get("protocol");
+    if (hasParams) {
+      const page = Number(searchParams.get("page")) || 1;
+      const field = searchParams.get("sortField") || "timestamp";
+      const order = searchParams.get("sortOrder") || "desc";
+      fetchResults(page, field, order);
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSearch = async () => {
+    setSelectedEmails([]);
+    await fetchResults(1);
+    updateUrlParams({ page: "1" });
+  };
+
+  const handlePageChange = async (page: number) => {
+    await fetchResults(page);
+    updateUrlParams({ page: String(page) });
+  };
+
+  const handleSort = async (field: string) => {
+    const newOrder =
+      sortField === field && sortOrder === "desc" ? "asc" : "desc";
+    setSortField(field);
+    setSortOrder(newOrder);
+
+    if (hasSearched) {
+      await fetchResults(1, field, newOrder);
+      updateUrlParams({ page: "1", sortField: field, sortOrder: newOrder });
     }
   };
 
@@ -173,18 +187,49 @@ export default function EmailSearchPage() {
   const totalPages = searchResponse?.totalPages || 0;
 
   const handleSelectAll = (checked: boolean) => {
+    const currentPageIds = results.map((r) => r.id);
     if (checked) {
-      setSelectedEmails(results.map((r) => r.id));
+      setSelectedEmails((prev) => Array.from(new Set([...prev, ...currentPageIds])));
     } else {
-      setSelectedEmails([]);
+      setSelectedEmails((prev) => prev.filter((id) => !currentPageIds.includes(id)));
     }
   };
 
   const handleSelectEmail = (id: string, checked: boolean) => {
     if (checked) {
-      setSelectedEmails([...selectedEmails, id]);
+      setSelectedEmails((prev) => [...prev, id]);
     } else {
-      setSelectedEmails(selectedEmails.filter((e) => e !== id));
+      setSelectedEmails((prev) => prev.filter((e) => e !== id));
+    }
+  };
+
+  const allOnPageSelected = results.length > 0 && results.every((r) => selectedEmails.includes(r.id));
+  const someOnPageSelected = results.some((r) => selectedEmails.includes(r.id));
+
+  const handleDownloadTarGz = async () => {
+    if (selectedEmails.length === 0) return;
+    setIsDownloading(true);
+    try {
+      const res = await fetch("/api/email/bulk-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedEmails }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Download failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `emails-${new Date().toISOString().slice(0, 10)}.tar.gz`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Silently fail — user can retry
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -389,13 +434,23 @@ export default function EmailSearchPage() {
                   )}
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                {selectedEmails.length > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    {selectedEmails.length} selected
+                  </span>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={selectedEmails.length === 0 || isSearching}
+                  disabled={selectedEmails.length === 0 || isSearching || isDownloading}
+                  onClick={handleDownloadTarGz}
                 >
-                  <Download className="mr-2 h-4 w-4" />
+                  {isDownloading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
                   Download TAR.GZ
                 </Button>
                 <Button
@@ -417,10 +472,7 @@ export default function EmailSearchPage() {
                   <TableRow>
                     <TableHead className="w-12">
                       <Checkbox
-                        checked={
-                          results.length > 0 &&
-                          results.every((r) => selectedEmails.includes(r.id))
-                        }
+                        checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
                         onCheckedChange={handleSelectAll}
                         aria-label="Select all"
                       />
@@ -438,20 +490,23 @@ export default function EmailSearchPage() {
                       </button>
                     </TableHead>
                     <TableHead>Protocol</TableHead>
-                    <TableHead className="w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {results.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center">
+                      <TableCell colSpan={6} className="h-24 text-center">
                         No results found.
                       </TableCell>
                     </TableRow>
                   ) : (
                     results.map((email) => (
-                      <TableRow key={email.id}>
-                        <TableCell>
+                      <TableRow
+                        key={email.id}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/dashboard/email/${email.id}`)}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selectedEmails.includes(email.id)}
                             onCheckedChange={(checked) =>
@@ -493,17 +548,6 @@ export default function EmailSearchPage() {
                           >
                             {email.protocol}
                           </span>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              router.push(`/dashboard/email/${email.id}`)
-                            }
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -575,10 +619,14 @@ export default function EmailSearchPage() {
   );
 }
 
-/**
- * Generate smart pagination page numbers with ellipsis for large result sets.
- * Shows first, last, and pages around the current page.
- */
+export default function EmailSearchPage() {
+  return (
+    <Suspense>
+      <EmailSearchContent />
+    </Suspense>
+  );
+}
+
 function generatePaginationPages(
   current: number,
   total: number
@@ -589,14 +637,12 @@ function generatePaginationPages(
 
   const pages: (number | "...")[] = [];
 
-  // Always show first page
   pages.push(1);
 
   if (current > 3) {
     pages.push("...");
   }
 
-  // Pages around current
   const start = Math.max(2, current - 1);
   const end = Math.min(total - 1, current + 1);
   for (let i = start; i <= end; i++) {
@@ -607,7 +653,6 @@ function generatePaginationPages(
     pages.push("...");
   }
 
-  // Always show last page
   if (total > 1) {
     pages.push(total);
   }
