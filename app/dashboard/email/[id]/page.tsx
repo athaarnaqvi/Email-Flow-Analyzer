@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,72 +13,42 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
   Download,
   FileText,
   Paperclip,
-  CheckCircle,
-  XCircle,
   Mail,
   Globe,
   Hash,
   Clock,
   Shield,
+  AlertCircle,
+  Info,
+  Loader2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-// Mock email data
-const mockEmail = {
-  id: "1",
-  from: "john.doe@example.com",
-  to: ["jane.smith@company.org", "bob.wilson@company.org"],
-  cc: ["team@company.org"],
-  bcc: [],
-  subject: "Q4 Financial Report - Final Review",
-  body: `
-    <div style="font-family: Arial, sans-serif;">
-      <p>Dear Team,</p>
-      
-      <p>Please find attached the Q4 Financial Report for your review. This document contains:</p>
-      
-      <ul>
-        <li>Revenue analysis for Q4 2024</li>
-        <li>Expense breakdown by department</li>
-        <li>Year-over-year comparison</li>
-        <li>Projected forecasts for Q1 2025</li>
-      </ul>
-      
-      <p>Key highlights:</p>
-      <ul>
-        <li>Total revenue increased by 15% compared to Q3</li>
-        <li>Operating expenses reduced by 8%</li>
-        <li>Net profit margin improved to 22%</li>
-      </ul>
-      
-      <p>Please review and provide your feedback by end of day Friday.</p>
-      
-      <p>Best regards,<br/>
-      John Doe<br/>
-      Financial Analyst</p>
-    </div>
-  `,
-  attachments: [
-    { name: "Q4_Financial_Report.pdf", size: 2456789, hash: "a1b2c3d4e5f6..." },
-    { name: "Revenue_Charts.xlsx", size: 156234, hash: "f6e5d4c3b2a1..." },
-    { name: "Expense_Analysis.docx", size: 89012, hash: "1a2b3c4d5e6f..." },
-  ],
-  metadata: {
-    protocol: "SMTP",
-    messageId: "<abc123@mail.example.com>",
-    sourceIp: "203.0.113.50",
-    destinationIp: "192.168.1.100",
-    contentType: "multipart/mixed",
-    receivedAt: "2024-01-15 14:32:00",
-    radiusCorrelated: true,
-    cgnatCorrelated: false,
-  },
-};
+interface EmailData {
+  id: string;
+  from: string[];
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  messageId: string;
+  contentType: string;
+  bodyText: string | null;
+  bodyHtml: string | null;
+  protocol: string;
+  sourceIp: string;
+  sourcePort: number | null;
+  destinationIp: string;
+  destinationPort: number | null;
+  timestamp: string;
+  attachments: any[];
+  smtp: any | null;
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -85,10 +56,136 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatTimestamp(ts: string): string {
+  try {
+    const date = new Date(ts);
+    return date.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return ts;
+  }
+}
+
 export default function EmailViewerPage() {
   const params = useParams();
   const router = useRouter();
-  const emailId = params.id;
+  const emailId = params.id as string;
+
+  const [email, setEmail] = useState<EmailData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadEml = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/email/${encodeURIComponent(emailId)}/eml`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `email-${emailId}.eml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Silently fail — the user can retry
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!emailId) return;
+
+    const fetchEmail = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/email/${encodeURIComponent(emailId)}`);
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(
+            res.status === 404
+              ? "Email not found"
+              : errData.details || errData.error || "Failed to load email"
+          );
+        }
+        const data: EmailData = await res.json();
+        setEmail(data);
+      } catch (err: any) {
+        setError(err.message || "An unexpected error occurred");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEmail();
+  }, [emailId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-md" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <Skeleton className="h-48 w-full rounded-lg" />
+            <Skeleton className="h-96 w-full rounded-lg" />
+            <Skeleton className="h-32 w-full rounded-lg" />
+          </div>
+          <div className="space-y-6">
+            <Skeleton className="h-72 w-full rounded-lg" />
+            <Skeleton className="h-32 w-full rounded-lg" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !email) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold tracking-tight">Email Viewer</h2>
+          </div>
+        </div>
+        <Card className="border-destructive">
+          <CardContent className="flex items-center gap-3 pt-6">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <div>
+              <p className="font-medium text-destructive">
+                {error === "Email not found"
+                  ? "Email Not Found"
+                  : "Error Loading Email"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {error || "The requested email could not be loaded."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const senderDisplay = email.from.length > 0 ? email.from[0] : "Unknown sender";
 
   return (
     <div className="space-y-6">
@@ -102,8 +199,12 @@ export default function EmailViewerPage() {
             Viewing email ID: {emailId}
           </p>
         </div>
-        <Button>
-          <Download className="mr-2 h-4 w-4" />
+        <Button onClick={handleDownloadEml} disabled={downloading}>
+          {downloading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
           Download EML
         </Button>
       </div>
@@ -114,10 +215,16 @@ export default function EmailViewerPage() {
           {/* Headers */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">{mockEmail.subject}</CardTitle>
+              <CardTitle className="text-lg">
+                {email.subject || (
+                  <span className="text-muted-foreground italic">
+                    (No Subject)
+                  </span>
+                )}
+              </CardTitle>
               <CardDescription className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
-                {mockEmail.from}
+                {senderDisplay}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -126,22 +233,26 @@ export default function EmailViewerPage() {
                   <span className="w-16 font-medium text-muted-foreground">
                     To:
                   </span>
-                  <span>{mockEmail.to.join(", ")}</span>
+                  <span>
+                    {email.to.length > 0
+                      ? email.to.join(", ")
+                      : "—"}
+                  </span>
                 </div>
-                {mockEmail.cc.length > 0 && (
+                {email.cc.length > 0 && (
                   <div className="flex">
                     <span className="w-16 font-medium text-muted-foreground">
                       Cc:
                     </span>
-                    <span>{mockEmail.cc.join(", ")}</span>
+                    <span>{email.cc.join(", ")}</span>
                   </div>
                 )}
-                {mockEmail.bcc.length > 0 && (
+                {email.bcc.length > 0 && (
                   <div className="flex">
                     <span className="w-16 font-medium text-muted-foreground">
                       Bcc:
                     </span>
-                    <span>{mockEmail.bcc.join(", ")}</span>
+                    <span>{email.bcc.join(", ")}</span>
                   </div>
                 )}
               </div>
@@ -155,10 +266,20 @@ export default function EmailViewerPage() {
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[400px] w-full rounded-md border p-4">
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: mockEmail.body }}
-                />
+                {email.bodyHtml ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
+                  />
+                ) : email.bodyText ? (
+                  <pre className="whitespace-pre-wrap text-sm font-mono break-all">
+                    {email.bodyText}
+                  </pre>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <p>No email body available</p>
+                  </div>
+                )}
               </ScrollArea>
             </CardContent>
           </Card>
@@ -168,36 +289,61 @@ export default function EmailViewerPage() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Paperclip className="h-4 w-4" />
-                Attachments ({mockEmail.attachments.length})
+                Attachments ({email.attachments.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {mockEmail.attachments.map((attachment, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium text-sm">{attachment.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatFileSize(attachment.size)}
-                        </p>
+              {email.attachments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No attachments
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {email.attachments.map((attachment: any, index: number) => (
+                    <div
+                      key={index}
+                      className="rounded-lg border p-3 space-y-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {attachment.filename || `Attachment ${index + 1}`}
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            {attachment.size != null && (
+                              <span>{formatFileSize(attachment.size)}</span>
+                            )}
+                            {attachment.content_type && (
+                              <span>{attachment.content_type}</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
+                      {(attachment.md5 || attachment.sha256) && (
+                        <div className="grid gap-1 pl-11 text-xs">
+                          {attachment.md5 && (
+                            <div className="flex gap-2">
+                              <span className="font-medium text-muted-foreground w-12 shrink-0">MD5</span>
+                              <code className="font-mono text-muted-foreground break-all">
+                                {attachment.md5}
+                              </code>
+                            </div>
+                          )}
+                          {attachment.sha256 && (
+                            <div className="flex gap-2">
+                              <span className="font-medium text-muted-foreground w-12 shrink-0">SHA256</span>
+                              <code className="font-mono text-muted-foreground break-all">
+                                {attachment.sha256}
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-4">
-                      <code className="text-xs text-muted-foreground font-mono">
-                        {attachment.hash}
-                      </code>
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -214,7 +360,7 @@ export default function EmailViewerPage() {
                   <Shield className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Protocol</span>
                   <Badge variant="secondary" className="ml-auto">
-                    {mockEmail.metadata.protocol}
+                    {email.protocol || "—"}
                   </Badge>
                 </div>
 
@@ -227,7 +373,7 @@ export default function EmailViewerPage() {
                       Message-ID
                     </span>
                     <code className="text-xs font-mono break-all">
-                      {mockEmail.metadata.messageId}
+                      {email.messageId || "—"}
                     </code>
                   </div>
                 </div>
@@ -238,7 +384,7 @@ export default function EmailViewerPage() {
                   <Globe className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Source IP</span>
                   <code className="ml-auto text-sm font-mono">
-                    {mockEmail.metadata.sourceIp}
+                    {email.sourceIp || "—"}
                   </code>
                 </div>
 
@@ -248,7 +394,7 @@ export default function EmailViewerPage() {
                     Destination IP
                   </span>
                   <code className="ml-auto text-sm font-mono">
-                    {mockEmail.metadata.destinationIp}
+                    {email.destinationIp || "—"}
                   </code>
                 </div>
 
@@ -260,7 +406,7 @@ export default function EmailViewerPage() {
                     Content Type
                   </span>
                   <code className="ml-auto text-xs font-mono">
-                    {mockEmail.metadata.contentType}
+                    {email.contentType || "—"}
                   </code>
                 </div>
 
@@ -270,7 +416,7 @@ export default function EmailViewerPage() {
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Received</span>
                   <span className="ml-auto text-sm">
-                    {mockEmail.metadata.receivedAt}
+                    {email.timestamp ? formatTimestamp(email.timestamp) : "—"}
                   </span>
                 </div>
               </div>
@@ -281,34 +427,16 @@ export default function EmailViewerPage() {
             <CardHeader>
               <CardTitle className="text-base">Correlation Status</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">RADIUS Correlation</span>
-                {mockEmail.metadata.radiusCorrelated ? (
-                  <Badge className="bg-success text-success-foreground">
-                    <CheckCircle className="mr-1 h-3 w-3" />
-                    Matched
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive">
-                    <XCircle className="mr-1 h-3 w-3" />
-                    Unmatched
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">CGNAT Correlation</span>
-                {mockEmail.metadata.cgnatCorrelated ? (
-                  <Badge className="bg-success text-success-foreground">
-                    <CheckCircle className="mr-1 h-3 w-3" />
-                    Matched
-                  </Badge>
-                ) : (
-                  <Badge variant="destructive">
-                    <XCircle className="mr-1 h-3 w-3" />
-                    Unmatched
-                  </Badge>
-                )}
+            <CardContent>
+              <div className="flex flex-col items-center justify-center py-4 text-center">
+                <Info className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  Coming Soon
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  RADIUS and CGNAT correlation will be available in a future
+                  update.
+                </p>
               </div>
             </CardContent>
           </Card>

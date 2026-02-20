@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeUsersIndex, deleteUserByEmail } from "@/lib/opensearch-index-init";
 import { client } from "@/lib/opensearch";
 import { verifyJWTMiddleware, isAdmin } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -31,9 +32,12 @@ export async function DELETE(request: NextRequest) {
       console.warn("Failed to refresh users index after delete:", err);
     }
 
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    logDashboardAction({ user: user.username || user.email, role: user.role, action: "USER_DELETE", target: email, ipAddress: ip });
+
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    console.error("Delete user error:", error);
+    logAppEvent({ level: "ERROR", message: `Delete user error: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json({ error: "An error occurred while deleting user" }, { status: 500 });
   }
 }

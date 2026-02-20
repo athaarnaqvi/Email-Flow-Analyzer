@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail, createUser, initializeUsersIndex } from "@/lib/opensearch-index-init";
 import { client } from "@/lib/opensearch";
 import { hashPassword } from "@/lib/auth-utils";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +53,10 @@ export async function POST(request: NextRequest) {
       console.warn("Failed to refresh users index after signup:", err);
     }
 
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    logDashboardAction({ user: username, role: "viewer", action: "SIGNUP", target: username, ipAddress: ip });
+    logAppEvent({ level: "INFO", message: `New user registered: ${username}` });
+
     return NextResponse.json(
       {
         success: true,
@@ -60,7 +65,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Signup error:", error);
+    logAppEvent({ level: "ERROR", message: `Signup error: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json(
       { error: "An error occurred during signup" },
       { status: 500 }

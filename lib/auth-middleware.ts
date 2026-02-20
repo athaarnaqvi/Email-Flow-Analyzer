@@ -4,6 +4,7 @@ import { verifyJWT } from "./auth-utils";
 export interface VerifiedRequest extends NextRequest {
   user?: {
     email: string;
+    username?: string;
     role: "admin" | "viewer" | "whitelist";
   };
 }
@@ -16,6 +17,7 @@ export async function verifyJWTMiddleware(
   request: NextRequest
 ): Promise<{
   email: string;
+  username?: string;
   role: "admin" | "viewer" | "whitelist";
 } | null> {
   try {
@@ -41,6 +43,7 @@ export async function verifyJWTMiddleware(
 
     return {
       email: payload.email,
+      username: payload.username,
       role: payload.role,
     };
   } catch (error) {

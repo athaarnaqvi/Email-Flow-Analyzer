@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client, INDEX_NAME } from "@/lib/opensearch";
+import { verifyJWTMiddleware } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 export async function GET(request: NextRequest) {
     try {
@@ -115,7 +117,7 @@ export async function GET(request: NextRequest) {
 
         // --- Transform response ---
         const hits = response.body.hits;
-        const total = typeof hits.total === "number" ? hits.total : hits.total.value;
+        const total = typeof hits.total === "number" ? hits.total : (hits.total?.value ?? 0);
 
         const results = hits.hits.map((hit: any) => ({
             id: hit._id,
@@ -135,6 +137,13 @@ export async function GET(request: NextRequest) {
             score: hit._score,
         }));
 
+        const user = await verifyJWTMiddleware(request);
+        if (user) {
+            const searchSummary = [email, protocol, sourceIp, startDate, endDate].filter(Boolean).join(", ") || "all";
+            const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+            logDashboardAction({ user: user.username || user.email, role: user.role, action: "SEARCH", target: searchSummary, ipAddress: ip });
+        }
+
         return NextResponse.json({
             results,
             total,
@@ -143,7 +152,7 @@ export async function GET(request: NextRequest) {
             totalPages: Math.ceil(total / size),
         });
     } catch (error: any) {
-        console.error("OpenSearch search failed:", error?.meta?.body || error);
+        logAppEvent({ level: "ERROR", message: `Search failed: ${error?.meta?.body?.error?.reason || error?.message || String(error)}` });
         return NextResponse.json(
             { error: "Search failed", details: error?.meta?.body?.error?.reason || error.message },
             { status: 500 }

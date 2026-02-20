@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateUserRole, initializeUsersIndex } from "@/lib/opensearch-index-init";
 import { client } from "@/lib/opensearch";
 import { verifyJWTMiddleware, isAdmin } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 export async function PUT(request: NextRequest) {
   try {
@@ -53,6 +54,9 @@ export async function PUT(request: NextRequest) {
       console.warn("Failed to refresh users index after role update:", err);
     }
 
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    logDashboardAction({ user: user.username || user.email, role: user.role, action: "ROLE_UPDATE", target: `${email} -> ${role}`, ipAddress: ip });
+
     return NextResponse.json(
       {
         success: true,
@@ -61,7 +65,7 @@ export async function PUT(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error("Role update error:", error);
+    logAppEvent({ level: "ERROR", message: `Role update error: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json(
       { error: "An error occurred while updating role" },
       { status: 500 }

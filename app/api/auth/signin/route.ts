@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail, initializeUsersIndex } from "@/lib/opensearch-index-init";
 import { generateJWT } from "@/lib/auth-utils";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 import bcrypt from "bcryptjs";
 
 export async function POST(request: NextRequest) {
@@ -9,10 +10,10 @@ export async function POST(request: NextRequest) {
     await initializeUsersIndex();
 
     const body = await request.json();
-    const { email, password, username } = body;
+    const { email, password, username: bodyUsername } = body;
 
     // Accept either email or username for backward compatibility
-    const credential = email || username;
+    const credential = email || bodyUsername;
 
     // Validate required fields
     if (!credential || !password) {
@@ -56,9 +57,12 @@ export async function POST(request: NextRequest) {
     // Determine role
     const role = user.role || "viewer";
 
+    const username = user.username || user.email;
+
     // Generate JWT token
     const token = await generateJWT({
       email: user.email || user.username,
+      username,
       role: role,
     });
 
@@ -69,6 +73,7 @@ export async function POST(request: NextRequest) {
         token,
         user: {
           email: user.email || user.username,
+          username,
           role: role,
         },
       },
@@ -84,9 +89,13 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    logDashboardAction({ user: username, role, action: "LOGIN", target: "System", ipAddress: ip });
+    logAppEvent({ level: "INFO", message: `User ${username} logged in` });
+
     return response;
   } catch (error) {
-    console.error("Signin error:", error);
+    logAppEvent({ level: "ERROR", message: `Signin error: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json(
       { error: "An error occurred during signin" },
       { status: 500 }

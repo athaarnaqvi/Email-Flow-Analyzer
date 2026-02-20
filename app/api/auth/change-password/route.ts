@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/opensearch-index-init";
 import { hashPassword } from "@/lib/auth-utils";
+import { verifyJWTMiddleware } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 const USERS_INDEX = "users";
 
@@ -100,14 +102,22 @@ export async function POST(request: NextRequest) {
 
     console.log("Password updated successfully for:", email);
 
+    const authUser = await verifyJWTMiddleware(request);
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    logDashboardAction({
+      user: authUser?.username || authUser?.email || email,
+      role: authUser?.role || "viewer",
+      action: "PASSWORD_CHANGE",
+      target: "Self",
+      ipAddress: ip,
+    });
+
     return NextResponse.json({
       success: true,
       message: "Password changed successfully",
     });
   } catch (error) {
-    console.error("=== Password Change Error ===");
-    console.error("Error:", error);
-    console.error("Error type:", error instanceof Error ? error.constructor.name : typeof error);
+    logAppEvent({ level: "ERROR", message: `Password change error: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json(
       { error: "Failed to change password: " + (error instanceof Error ? error.message : "Unknown error") },
       { status: 500 }

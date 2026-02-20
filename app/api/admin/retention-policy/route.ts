@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/lib/opensearch";
+import { verifyJWTMiddleware } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 const CONFIG_INDEX = "retention-config";
 const CONFIG_ID = "policy";
@@ -96,9 +98,15 @@ export async function POST(request: NextRequest) {
     // Trigger cleanup job asynchronously (in production, this would be a scheduled job)
     setImmediate(() => {
       cleanupOldData(days).catch((err) => {
-        console.error("Cleanup job failed:", err);
+        logAppEvent({ level: "ERROR", message: `Cleanup job failed: ${err instanceof Error ? err.message : String(err)}` });
       });
     });
+
+    const user = await verifyJWTMiddleware(request);
+    if (user) {
+      const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+      logDashboardAction({ user: user.username || user.email, role: user.role, action: "RETENTION_UPDATE", target: `${days} days`, ipAddress: ip });
+    }
 
     return NextResponse.json({
       success: true,
@@ -106,7 +114,7 @@ export async function POST(request: NextRequest) {
       days,
     });
   } catch (error) {
-    console.error("Failed to update retention policy:", error);
+    logAppEvent({ level: "ERROR", message: `Failed to update retention policy: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json(
       { error: "Failed to update retention policy" },
       { status: 500 }

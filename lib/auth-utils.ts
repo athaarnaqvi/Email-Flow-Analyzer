@@ -7,6 +7,7 @@ const SECRET = new TextEncoder().encode(
 
 export interface JWTPayload {
   email: string;
+  username?: string;
   role: "admin" | "viewer" | "whitelist";
   iat?: number;
   exp?: number;

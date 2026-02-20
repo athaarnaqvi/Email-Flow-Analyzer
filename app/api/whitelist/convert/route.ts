@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { initializeUsersIndex, findUserByIdentifier, updateUserRoleById } from "@/lib/opensearch-index-init";
 import { client } from "@/lib/opensearch";
 import { verifyJWTMiddleware } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 export async function PUT(request: NextRequest) {
   try {
@@ -35,9 +36,12 @@ export async function PUT(request: NextRequest) {
       console.warn("Failed to refresh users index after whitelist convert:", err);
     }
 
+    const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+    logDashboardAction({ user: user.username || user.email, role: user.role, action: "WHITELIST_ADD", target: identifier, ipAddress: ip });
+
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    console.error("Whitelist convert error:", error);
+    logAppEvent({ level: "ERROR", message: `Whitelist convert error: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json({ error: "An error occurred while converting user" }, { status: 500 });
   }
 }

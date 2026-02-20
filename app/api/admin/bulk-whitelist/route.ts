@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/lib/opensearch";
+import { verifyJWTMiddleware } from "@/lib/auth-middleware";
+import { logDashboardAction, logAppEvent } from "@/lib/audit-logger";
 
 const USERS_INDEX = "users";
 
@@ -126,6 +128,18 @@ export async function POST(request: NextRequest) {
       (entry: string) => !foundEntries.has(entry)
     );
 
+    const authUser = await verifyJWTMiddleware(request);
+    if (authUser) {
+      const ip = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "";
+      logDashboardAction({
+        user: authUser.username || authUser.email,
+        role: authUser.role,
+        action: "BULK_WHITELIST",
+        target: `${foundEntries.size} updated, ${missingEntries.length} missing of ${parsedSearchTerms.length} entries`,
+        ipAddress: ip,
+      });
+    }
+
     return NextResponse.json({
       updated: Array.from(foundEntries),
       missing: missingEntries,
@@ -134,7 +148,7 @@ export async function POST(request: NextRequest) {
       failureCount: missingEntries.length,
     });
   } catch (error) {
-    console.error("Bulk whitelist update failed:", error);
+    logAppEvent({ level: "ERROR", message: `Bulk whitelist update failed: ${error instanceof Error ? error.message : String(error)}` });
     return NextResponse.json(
       { error: "Failed to process whitelist entries" },
       { status: 500 }
